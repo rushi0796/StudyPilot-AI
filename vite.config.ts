@@ -1,6 +1,6 @@
 import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-import { processChatRequest } from './api/chatHandler';
+import { processChatRequest } from './api/chat';
 import evaluateHandler from './api/evaluate';
 import quizHandler from './api/quiz';
 
