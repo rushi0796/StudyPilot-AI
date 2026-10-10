@@ -58,7 +58,7 @@ Output ONLY a JSON array of ${count} items with this exact schema:
         generationConfig: {
           responseMimeType: 'application/json',
           temperature: 0.5,
-          maxOutputTokens: 2048
+          maxOutputTokens: 4096
         }
       })
     });
@@ -75,9 +75,19 @@ Output ONLY a JSON array of ${count} items with this exact schema:
 
     const data = await response.json();
     const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-    const parsed = JSON.parse(jsonText);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch {
+      const clean = jsonText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+      try {
+        parsed = JSON.parse(clean);
+      } catch {
+        parsed = [];
+      }
+    }
 
-    return res.status(200).json(parsed);
+    return res.status(200).json(Array.isArray(parsed) ? parsed : []);
   } catch (error: any) {
     return res.status(500).json({
       error: {
