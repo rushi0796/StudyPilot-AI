@@ -1,6 +1,19 @@
 import { DocumentChunk, UploadedDocument } from '../types';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import mammoth from 'mammoth';
+
+// Configure the correct PDF.js worker for the installed version and Vite bundler
+if (typeof window !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker || new URL(
+      'pdfjs-dist/build/pdf.worker.min.mjs',
+      import.meta.url
+    ).toString();
+  } catch {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+  }
+}
 
 /**
  * StudyPilot AI - Real Multi-Format Academic Document Parser
@@ -144,7 +157,7 @@ export async function parseDocumentFile(file: File, subjectId = 'cs201'): Promis
     docType = 'pdf';
     const pages = await parsePdfPages(file);
     if (pages.length === 0 || pages.every(p => !p.text.trim())) {
-      throw new Error(`Could not extract readable text from "${file.name}". The PDF might be scanned or image-only.`);
+      throw new Error(`No extractable digital text found in "${file.name}". This file appears to be a scanned or image-only document that requires Optical Character Recognition (OCR) to extract study content.`);
     }
     fullText = pages.map(p => `--- Page ${p.pageNumber} ---\n${p.text}`).join('\n\n');
     chunks = createChunksFromPages(docId, file.name, pages);
@@ -198,6 +211,18 @@ export async function parseDocumentFile(file: File, subjectId = 'cs201'): Promis
  * Real PDF Page Extractor using pdfjs-dist
  */
 async function parsePdfPages(file: File): Promise<ParsedPageData[]> {
+  // Ensure worker is configured before getDocument
+  if (typeof window !== 'undefined' && pdfjsLib.GlobalWorkerOptions && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker || new URL(
+        'pdfjs-dist/build/pdf.worker.min.mjs',
+        import.meta.url
+      ).toString();
+    } catch {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+    }
+  }
+
   const arrayBuffer = await file.arrayBuffer();
   const loadingTask = pdfjsLib.getDocument({
     data: new Uint8Array(arrayBuffer),
