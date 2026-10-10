@@ -24,6 +24,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { Language, DifficultyLevel, ChatMessage, DocumentChunk } from '../../types';
 import { askGeminiTutor, ChatHistoryTurn } from '../../services/aiProvider';
+import { retrieveRelevantChunks } from '../../services/ragEngine';
 
 export const AIAssistantView: React.FC = () => {
   const { 
@@ -131,8 +132,24 @@ Try asking me:
     try {
       // Gather document chunks if grounding is active
       let chunksToPass: DocumentChunk[] = [];
-      if (groundWithFiles && activeDoc) {
-        chunksToPass = activeDoc.chunks.slice(0, 4);
+      if (groundWithFiles && uploadedDocuments.length > 0) {
+        let candidateChunks: DocumentChunk[] = [];
+        if (activeDocumentId === 'all') {
+          candidateChunks = uploadedDocuments.flatMap(d => d.chunks || []);
+        } else if (activeDoc) {
+          candidateChunks = activeDoc.chunks || [];
+        } else {
+          candidateChunks = uploadedDocuments.flatMap(d => d.chunks || []);
+        }
+
+        // High-precision hybrid lexical & semantic retrieval
+        const retrieved = retrieveRelevantChunks(text, candidateChunks, 6);
+        if (retrieved.length > 0) {
+          chunksToPass = retrieved.map(r => r.chunk);
+        } else {
+          // Pass top candidate chunks so server-side searchDocuments can evaluate
+          chunksToPass = candidateChunks.slice(0, 10);
+        }
       }
 
       const responseData = await askGeminiTutor({
@@ -241,12 +258,14 @@ Try asking me:
               <select
                 value={activeDocumentId || ''}
                 onChange={(e) => {
-                  setActiveDocumentId(e.target.value || undefined);
-                  setGroundWithFiles(Boolean(e.target.value));
+                  const val = e.target.value;
+                  setActiveDocumentId(val || undefined);
+                  setGroundWithFiles(Boolean(val));
                 }}
-                className="bg-transparent text-charcoal-800 font-semibold text-xs focus:outline-none max-w-[140px] truncate"
+                className="bg-transparent text-charcoal-800 font-semibold text-xs focus:outline-none max-w-[155px] truncate"
               >
                 <option value="">No File Grounding</option>
+                <option value="all">All Files ({uploadedDocuments.length})</option>
                 {uploadedDocuments.map(d => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
@@ -310,10 +329,10 @@ Try asking me:
               Connected to <strong>Google Gemini API</strong> via server-side agent. Conversational multi-turn context and tool calling active.
             </span>
           </div>
-          {groundWithFiles && activeDoc && (
+          {groundWithFiles && uploadedDocuments.length > 0 && (
             <span className="text-[10px] text-forest-800 font-semibold flex items-center gap-1 bg-sage-100 px-2.5 py-0.5 rounded-full border border-sage-200">
               <CheckCircle2 className="w-3 h-3 text-forest-600" />
-              <span>Grounded: {activeDoc.name}</span>
+              <span>Grounded: {activeDocumentId === 'all' ? `All Files (${uploadedDocuments.length})` : (activeDoc?.name || 'Active Document')}</span>
             </span>
           )}
         </div>

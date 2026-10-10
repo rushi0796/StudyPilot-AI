@@ -16,6 +16,11 @@ import {
   INITIAL_REVISION_TASKS 
 } from '../data/mockData';
 import { INITIAL_PRELOADED_DOCUMENTS } from '../services/documentParser';
+import { 
+  loadPersistentDocuments, 
+  savePersistentDocument, 
+  deletePersistentDocument 
+} from '../services/storageService';
 
 export type ActiveView = 
   | 'dashboard' 
@@ -136,9 +141,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     INITIAL_PRELOADED_DOCUMENTS[0]?.id
   );
 
+  // Initialize from persistent IndexedDB on component mount
+  useEffect(() => {
+    let isMounted = true;
+    loadPersistentDocuments()
+      .then((docs) => {
+        if (isMounted && docs && docs.length > 0) {
+          setUploadedDocuments(docs);
+          setActiveDocumentId(prev => prev || docs[0]?.id);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load persistent documents from IndexedDB:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const addUploadedDocument = (doc: UploadedDocument) => {
-    setUploadedDocuments(prev => [doc, ...prev]);
+    setUploadedDocuments(prev => [doc, ...prev.filter(d => d.id !== doc.id)]);
     setActiveDocumentId(doc.id);
+    savePersistentDocument(doc).catch(err => {
+      console.warn('Could not save document to IndexedDB:', err);
+    });
   };
 
   const deleteUploadedDocument = (id: string) => {
@@ -146,6 +172,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (activeDocumentId === id) {
       setActiveDocumentId(undefined);
     }
+    deletePersistentDocument(id).catch(err => {
+      console.warn('Could not delete document from IndexedDB:', err);
+    });
   };
 
   // Subjects state
@@ -216,7 +245,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [studentProfile]);
 
   useEffect(() => {
-    localStorage.setItem('studypilot_documents', JSON.stringify(uploadedDocuments));
+    try {
+      localStorage.setItem('studypilot_documents', JSON.stringify(uploadedDocuments));
+    } catch {
+      // If full text exceeds 5MB localStorage quota, save metadata only as backup
+      try {
+        const metadataOnly = uploadedDocuments.map(d => ({
+          ...d,
+          text: d.text.slice(0, 500) + '...',
+          chunks: d.chunks.slice(0, 2)
+        }));
+        localStorage.setItem('studypilot_documents', JSON.stringify(metadataOnly));
+      } catch {}
+    }
   }, [uploadedDocuments]);
 
   useEffect(() => {

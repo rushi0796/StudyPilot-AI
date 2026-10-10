@@ -15,6 +15,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { QuestionMarks, EvaluationResult } from '../../types';
 import { evaluateAnswerWithGemini, isLiveAiAvailable } from '../../services/aiProvider';
+import { retrieveRelevantChunks } from '../../services/ragEngine';
 import confetti from 'canvas-confetti';
 
 export const AnswerEvaluatorView: React.FC = () => {
@@ -99,7 +100,13 @@ Both tables are now in 3NF and free from transitive anomalies.`
     }, 250);
 
     try {
-      const chunks = useDocContext && activeDoc ? activeDoc.chunks.slice(0, 3) : undefined;
+      let chunks = undefined;
+      if (useDocContext && uploadedDocuments.length > 0) {
+        const candidateChunks = activeDoc?.chunks || uploadedDocuments.flatMap(d => d.chunks || []);
+        const query = `${selectedQuestion.text} ${selectedQuestion.topic}`;
+        const retrieved = retrieveRelevantChunks(query, candidateChunks, 4);
+        chunks = retrieved.length > 0 ? retrieved.map(r => r.chunk) : candidateChunks.slice(0, 4);
+      }
       const result = await evaluateAnswerWithGemini({
         question: selectedQuestion.text,
         studentAnswer: studentAnswerText,

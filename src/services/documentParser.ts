@@ -1,9 +1,11 @@
 import { DocumentChunk, UploadedDocument } from '../types';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import mammoth from 'mammoth';
 
 /**
- * StudyPilot AI - In-Browser Academic Document Parser
+ * StudyPilot AI - Real Multi-Format Academic Document Parser
  * Supports: PDF, DOCX, TXT, MD
- * Extracts text, generates semantic chunks with citations, and estimates tokens.
+ * Extracts real text, preserves page numbers & headings, and produces RAG-ready chunks.
  */
 
 // Sample preloaded academic documents for SGU Semester III curriculum
@@ -48,7 +50,7 @@ Any schema decomposition must guarantee:
         documentId: 'doc_dbms_handout',
         documentName: 'SGU_DBMS_Unit3_Normalization_Handout.pdf',
         chunkIndex: 0,
-        pageOrSection: 'Section 1: The Problem of Redundancy',
+        pageOrSection: 'Page 1 (Section 1: Redundancy & Anomalies)',
         content: `Relational schema anomalies arise when multiple real-world facts are grouped into a single table. The three core anomalies are: 1. Insertion Anomaly: Inability to record information about an entity without recording unrelated information about another entity. 2. Deletion Anomaly: Unintended loss of crucial information when a related record is removed. 3. Update Anomaly: Necessity of modifying multiple rows when a single fact changes, risking database inconsistency.`
       },
       {
@@ -56,7 +58,7 @@ Any schema decomposition must guarantee:
         documentId: 'doc_dbms_handout',
         documentName: 'SGU_DBMS_Unit3_Normalization_Handout.pdf',
         chunkIndex: 1,
-        pageOrSection: 'Section 2: First Normal Form & Second Normal Form',
+        pageOrSection: 'Page 1 (Section 2: 1NF & 2NF Rules)',
         content: `A relation R is in 1NF if and only if all domain values are atomic and no repeating groups exist. A relation R is in 2NF if it is in 1NF and every non-prime attribute is fully functionally dependent on the primary key (no partial functional dependency). If a candidate key is composite (e.g. {StudentID, CourseID}), non-key attributes cannot depend on only StudentID.`
       },
       {
@@ -64,7 +66,7 @@ Any schema decomposition must guarantee:
         documentId: 'doc_dbms_handout',
         documentName: 'SGU_DBMS_Unit3_Normalization_Handout.pdf',
         chunkIndex: 2,
-        pageOrSection: 'Section 3: 3NF vs BCNF Comparison',
+        pageOrSection: 'Page 2 (Section 3: 3NF vs BCNF Comparison)',
         content: `A relation R is in 3NF if whenever X -> A holds in R, either X is a superkey of R, or A is a prime attribute. This condition specifically eliminates Transitive Dependencies (X -> Y and Y -> A). BCNF is strictly stronger: for every FD X -> A, X MUST be a superkey. Every BCNF schema is in 3NF, but not every 3NF schema is in BCNF.`
       },
       {
@@ -72,7 +74,7 @@ Any schema decomposition must guarantee:
         documentId: 'doc_dbms_handout',
         documentName: 'SGU_DBMS_Unit3_Normalization_Handout.pdf',
         chunkIndex: 3,
-        pageOrSection: 'Section 4: Lossless Join & Preservation',
+        pageOrSection: 'Page 2 (Section 4: Lossless Join & Preservation)',
         content: `Any schema decomposition must guarantee: 1. Lossless Join: Natural join of decomposed tables must recreate the original relation without spurious tuples (R1 ∩ R2 -> R1 or R1 ∩ R2 -> R2). 2. Dependency Preservation: All functional dependencies in F can be enforced without computing joins across decomposed tables.`
       }
     ]
@@ -111,32 +113,72 @@ f(n) = g(n) + h(n)
   }
 ];
 
-export async function parseDocumentFile(file: File, subjectId = 'cs201'): Promise<UploadedDocument> {
-  const extension = file.name.split('.').pop()?.toLowerCase() || '';
-  let extractedText = '';
-  let docType: UploadedDocument['type'] = 'other';
+export interface ParsedPageData {
+  pageNumber: number;
+  text: string;
+}
 
-  if (extension === 'pdf') {
-    docType = 'pdf';
-    extractedText = await parsePdfFile(file);
-  } else if (extension === 'docx') {
-    docType = 'docx';
-    extractedText = await parseDocxFile(file);
-  } else if (extension === 'md') {
-    docType = 'md';
-    extractedText = await file.text();
-  } else {
-    docType = 'txt';
-    extractedText = await file.text();
+/**
+ * Validate and parse an uploaded study document into structured chunks
+ */
+export async function parseDocumentFile(file: File, subjectId = 'cs201'): Promise<UploadedDocument> {
+  // 1. Validation
+  const maxSizeBytes = 20 * 1024 * 1024; // 20MB
+  if (file.size > maxSizeBytes) {
+    throw new Error(`File size (${(file.size / (1024 * 1024)).toFixed(1)}MB) exceeds the 20MB limit.`);
   }
 
-  // Clean and normalize text
-  const cleanText = cleanExtractedText(extractedText, file.name);
-  const words = cleanText.trim().split(/\s+/).filter(Boolean);
-  const wordCount = words.length;
+  const extension = file.name.split('.').pop()?.toLowerCase() || '';
+  const supportedExtensions = ['pdf', 'docx', 'txt', 'md'];
+  if (!supportedExtensions.includes(extension)) {
+    throw new Error(`Unsupported file type ".${extension}". Please upload PDF, DOCX, TXT, or MD files.`);
+  }
 
+  let fullText = '';
+  let chunks: DocumentChunk[] = [];
   const docId = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  const chunks = createDocumentChunks(docId, file.name, cleanText);
+  let docType: UploadedDocument['type'] = 'other';
+
+  // 2. Format-Specific Parsing
+  if (extension === 'pdf') {
+    docType = 'pdf';
+    const pages = await parsePdfPages(file);
+    if (pages.length === 0 || pages.every(p => !p.text.trim())) {
+      throw new Error(`Could not extract readable text from "${file.name}". The PDF might be scanned or image-only.`);
+    }
+    fullText = pages.map(p => `--- Page ${p.pageNumber} ---\n${p.text}`).join('\n\n');
+    chunks = createChunksFromPages(docId, file.name, pages);
+  } else if (extension === 'docx') {
+    docType = 'docx';
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    fullText = result.value || '';
+    if (!fullText.trim()) {
+      throw new Error(`Could not extract readable text from "${file.name}".`);
+    }
+    chunks = createDocumentChunks(docId, file.name, fullText);
+  } else if (extension === 'md') {
+    docType = 'md';
+    fullText = await file.text();
+    if (!fullText.trim()) {
+      throw new Error(`The file "${file.name}" is empty.`);
+    }
+    chunks = createDocumentChunks(docId, file.name, fullText);
+  } else {
+    docType = 'txt';
+    fullText = await file.text();
+    if (!fullText.trim()) {
+      throw new Error(`The file "${file.name}" is empty.`);
+    }
+    chunks = createDocumentChunks(docId, file.name, fullText);
+  }
+
+  const cleanText = fullText.trim();
+  const words = cleanText.split(/\s+/).filter(Boolean);
+
+  if (words.length < 5) {
+    throw new Error(`The document "${file.name}" contains insufficient readable text.`);
+  }
 
   return {
     id: docId,
@@ -145,158 +187,162 @@ export async function parseDocumentFile(file: File, subjectId = 'cs201'): Promis
     type: docType,
     uploadedAt: 'Just now',
     text: cleanText,
-    wordCount,
+    wordCount: words.length,
     chunks,
     status: 'ready',
     subjectId
   };
 }
 
-async function parsePdfFile(file: File): Promise<string> {
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
-    const decoder = new TextDecoder('utf-8');
-    const rawContent = decoder.decode(bytes);
+/**
+ * Real PDF Page Extractor using pdfjs-dist
+ */
+async function parsePdfPages(file: File): Promise<ParsedPageData[]> {
+  const arrayBuffer = await file.arrayBuffer();
+  const loadingTask = pdfjsLib.getDocument({
+    data: new Uint8Array(arrayBuffer),
+    useSystemFonts: true
+  });
 
-    // Extract text between PDF text object delimiters (BT ... ET)
-    const textChunks: string[] = [];
-    const btRegex = /BT[\s\S]*?ET/g;
-    let match;
+  const pdf = await loadingTask.promise;
+  const pagesData: ParsedPageData[] = [];
 
-    while ((match = btRegex.exec(rawContent)) !== null) {
-      const block = match[0];
-      // Match text within parentheses (e.g. (Hello World) Tj)
-      const tjRegex = /\(([^)]+)\)\s*T[jJ]/g;
-      let tjMatch;
-      while ((tjMatch = tjRegex.exec(block)) !== null) {
-        textChunks.push(tjMatch[1]);
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const content = await page.getTextContent();
+    const strings = content.items
+      .filter((item: any) => typeof item.str === 'string')
+      .map((item: any) => item.str);
+    
+    const pageText = strings.join(' ').replace(/\s+/g, ' ').trim();
+    if (pageText) {
+      pagesData.push({
+        pageNumber: pageNum,
+        text: pageText
+      });
+    }
+  }
+
+  return pagesData;
+}
+
+/**
+ * Chunk PDF pages preserving exact page numbers
+ */
+function createChunksFromPages(docId: string, docName: string, pages: ParsedPageData[]): DocumentChunk[] {
+  const chunks: DocumentChunk[] = [];
+  let chunkIdx = 0;
+  const maxChunkLength = 850;
+
+  for (const page of pages) {
+    const text = page.text;
+    if (text.length <= maxChunkLength) {
+      chunks.push({
+        id: `${docId}_chk_${chunkIdx}`,
+        documentId: docId,
+        documentName: docName,
+        chunkIndex: chunkIdx,
+        pageOrSection: `Page ${page.pageNumber}`,
+        content: text
+      });
+      chunkIdx++;
+    } else {
+      // Split large page with small overlap
+      let start = 0;
+      let partNum = 1;
+      while (start < text.length) {
+        const end = Math.min(start + maxChunkLength, text.length);
+        const sub = text.slice(start, end).trim();
+        if (sub.length > 20) {
+          chunks.push({
+            id: `${docId}_chk_${chunkIdx}`,
+            documentId: docId,
+            documentName: docName,
+            chunkIndex: chunkIdx,
+            pageOrSection: `Page ${page.pageNumber} (Part ${partNum})`,
+            content: sub
+          });
+          chunkIdx++;
+          partNum++;
+        }
+        start += maxChunkLength - 120;
+        if (start >= text.length - 120) break;
       }
     }
-
-    if (textChunks.length > 0) {
-      return textChunks.join(' ');
-    }
-
-    // Fallback: look for readable ASCII strings
-    const readableStrings: string[] = [];
-    const strRegex = /[a-zA-Z0-9\s.,;:?!'"()\-_/]{5,}/g;
-    let strMatch;
-    while ((strMatch = strRegex.exec(rawContent)) !== null) {
-      const s = strMatch[0].trim();
-      if (s.length > 8 && !s.startsWith('/Filter') && !s.startsWith('/Length') && !s.includes('stream')) {
-        readableStrings.push(s);
-      }
-    }
-
-    if (readableStrings.length > 5) {
-      return readableStrings.join('\n');
-    }
-
-    return `Document content extracted from ${file.name}. Contains university lecture notes, problem statements, and academic study criteria for Semester III curriculum.`;
-  } catch (err) {
-    return `Uploaded university lecture notes: ${file.name}`;
   }
+
+  return chunks;
 }
 
-async function parseDocxFile(file: File): Promise<string> {
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
-    const decoder = new TextDecoder('utf-8');
-    const rawContent = decoder.decode(bytes);
-
-    // Extract text from XML nodes: <w:t>...</w:t> or <w:t xml:space="preserve">...</w:t>
-    const wtRegex = /<w:t[^>]*>([^<]+)<\/w:t>/g;
-    const paragraphs: string[] = [];
-    let match;
-
-    while ((match = wtRegex.exec(rawContent)) !== null) {
-      paragraphs.push(match[1]);
-    }
-
-    if (paragraphs.length > 0) {
-      return paragraphs.join(' ');
-    }
-
-    return await file.text();
-  } catch (err) {
-    return `Parsed study notes from ${file.name}`;
-  }
-}
-
-function cleanExtractedText(text: string, filename: string): string {
-  if (!text || text.trim().length === 0) {
-    return `Academic study notes: ${filename}`;
-  }
-  return text
-    .replace(/\\r/g, '\n')
-    .replace(/\t/g, ' ')
-    .replace(/[ ]{2,}/g, ' ')
-    .trim();
-}
-
+/**
+ * Chunk text by headings or paragraphs with metadata preservation
+ */
 function createDocumentChunks(docId: string, docName: string, fullText: string): DocumentChunk[] {
-  const chunkSize = 900;
-  const overlap = 150;
+  const chunkSize = 850;
+  const overlap = 120;
   const chunks: DocumentChunk[] = [];
 
-  // Split text by paragraphs first
-  const paragraphs = fullText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+  // Check for markdown headings (#, ##, ###)
+  const sections = fullText.split(/\n(?=#{1,3}\s+)/g).filter(s => s.trim().length > 0);
 
-  if (paragraphs.length > 1 && fullText.length > chunkSize) {
-    let currentChunk = '';
+  if (sections.length > 1) {
     let chunkIdx = 0;
+    for (const sec of sections) {
+      const firstLine = sec.split('\n')[0].replace(/^#+\s*/, '').trim() || `Section ${chunkIdx + 1}`;
+      const secLabel = firstLine.length > 40 ? firstLine.slice(0, 37) + '...' : firstLine;
 
-    for (const para of paragraphs) {
-      if ((currentChunk + '\n' + para).length > chunkSize && currentChunk.length > 0) {
+      if (sec.length <= chunkSize) {
         chunks.push({
-          id: `${docId}_chunk_${chunkIdx}`,
+          id: `${docId}_chk_${chunkIdx}`,
+          documentId: docId,
+          documentName: docName,
+          chunkIndex: chunkIdx,
+          pageOrSection: `Section: ${secLabel}`,
+          content: sec.trim()
+        });
+        chunkIdx++;
+      } else {
+        // Sub-split
+        let start = 0;
+        let part = 1;
+        while (start < sec.length) {
+          const end = Math.min(start + chunkSize, sec.length);
+          const chunkContent = sec.slice(start, end).trim();
+          if (chunkContent.length > 20) {
+            chunks.push({
+              id: `${docId}_chk_${chunkIdx}`,
+              documentId: docId,
+              documentName: docName,
+              chunkIndex: chunkIdx,
+              pageOrSection: `Section: ${secLabel} (Part ${part})`,
+              content: chunkContent
+            });
+            chunkIdx++;
+            part++;
+          }
+          start += chunkSize - overlap;
+          if (start >= sec.length - overlap) break;
+        }
+      }
+    }
+  } else {
+    // Sliding window over paragraphs
+    let start = 0;
+    let chunkIdx = 0;
+    while (start < fullText.length) {
+      const end = Math.min(start + chunkSize, fullText.length);
+      const content = fullText.slice(start, end).trim();
+      if (content.length > 20) {
+        chunks.push({
+          id: `${docId}_chk_${chunkIdx}`,
           documentId: docId,
           documentName: docName,
           chunkIndex: chunkIdx,
           pageOrSection: `Section ${chunkIdx + 1}`,
-          content: currentChunk.trim()
-        });
-        chunkIdx++;
-        // Keep overlap
-        currentChunk = currentChunk.slice(-overlap) + '\n' + para;
-      } else {
-        currentChunk = currentChunk ? currentChunk + '\n' + para : para;
-      }
-    }
-
-    if (currentChunk.trim().length > 0) {
-      chunks.push({
-        id: `${docId}_chunk_${chunkIdx}`,
-        documentId: docId,
-        documentName: docName,
-        chunkIndex: chunkIdx,
-        pageOrSection: `Section ${chunkIdx + 1}`,
-        content: currentChunk.trim()
-      });
-    }
-  } else {
-    // Sliding window chunking
-    let start = 0;
-    let chunkIdx = 0;
-
-    while (start < fullText.length) {
-      const end = Math.min(start + chunkSize, fullText.length);
-      const content = fullText.slice(start, end).trim();
-
-      if (content.length > 20) {
-        chunks.push({
-          id: `${docId}_chunk_${chunkIdx}`,
-          documentId: docId,
-          documentName: docName,
-          chunkIndex: chunkIdx,
-          pageOrSection: `Part ${chunkIdx + 1}`,
           content
         });
         chunkIdx++;
       }
-
       start += chunkSize - overlap;
       if (start >= fullText.length - overlap) break;
     }
@@ -304,7 +350,7 @@ function createDocumentChunks(docId: string, docName: string, fullText: string):
 
   if (chunks.length === 0) {
     chunks.push({
-      id: `${docId}_chunk_0`,
+      id: `${docId}_chk_0`,
       documentId: docId,
       documentName: docName,
       chunkIndex: 0,

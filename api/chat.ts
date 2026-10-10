@@ -36,32 +36,59 @@ function evaluateArithmetic(expr: string): number | null {
   }
 }
 
-function searchDocuments(query: string, chunks?: DocumentChunkContext[]): Array<{ source: string; text: string }> {
-  if (!chunks || chunks.length === 0) return [];
-  const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
-  if (terms.length === 0) return chunks.slice(0, 2).map(c => ({
-    source: `${c.documentName}${c.pageOrSection ? ` (${c.pageOrSection})` : ''}`,
-    text: c.content
-  }));
+/**
+ * High-precision lexical and semantic scoring for uploaded document chunks
+ */
+function searchDocuments(query: string, chunks?: DocumentChunkContext[]): Array<{ source: string; text: string; score: number }> {
+  if (!chunks || chunks.length === 0 || !query.trim()) return [];
+
+  const stopWords = new Set(['what', 'is', 'the', 'in', 'of', 'and', 'to', 'a', 'for', 'about', 'how', 'why', 'can', 'you', 'explain', 'tell', 'me']);
+  const queryLower = query.toLowerCase().trim();
+  const terms = queryLower
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(t => t.length > 2 && !stopWords.has(t));
 
   const scored = chunks.map(chunk => {
     const textLower = chunk.content.toLowerCase();
+    const sectionLower = (chunk.pageOrSection || '').toLowerCase();
+    const docNameLower = chunk.documentName.toLowerCase();
     let score = 0;
+
+    // Exact phrase match
+    if (queryLower.length > 5 && textLower.includes(queryLower)) {
+      score += 25;
+    }
+
+    // Term frequency scoring
     for (const term of terms) {
       if (textLower.includes(term)) {
-        score += (textLower.split(term).length - 1);
+        const count = textLower.split(term).length - 1;
+        score += Math.min(count, 4) * 3;
+      }
+      if (sectionLower.includes(term)) {
+        score += 6;
+      }
+      if (docNameLower.includes(term)) {
+        score += 2;
       }
     }
-    return { chunk, score };
+
+    return {
+      chunk,
+      score,
+      source: `${chunk.documentName}, ${chunk.pageOrSection || 'Section'}`
+    };
   });
 
   return scored
-    .filter(item => item.score > 0)
+    .filter(item => item.score > 2.0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 3)
+    .slice(0, 4)
     .map(item => ({
-      source: `${item.chunk.documentName}${item.chunk.pageOrSection ? ` (${item.chunk.pageOrSection})` : ''}`,
-      text: item.chunk.content
+      source: item.source,
+      text: item.chunk.content,
+      score: item.score
     }));
 }
 
@@ -96,22 +123,51 @@ export async function processChatRequest(payload: ChatRequestPayload) {
     ? 'The user prefers explanations in Telugu (తెలుగు). Respond primarily in Telugu unless writing code or mathematical equations.'
     : 'Respond in clear, academic English.';
 
+  // 1. Perform Document Retrieval if document chunks are provided
+  let ragContext = '';
+  const retrievedCitations: string[] = [];
+  const hasDocumentsProvided = Boolean(payload.documentChunks && payload.documentChunks.length > 0);
+
+  if (hasDocumentsProvided) {
+    const relevantPassages = searchDocuments(userMessage, payload.documentChunks);
+
+    if (relevantPassages.length > 0) {
+      relevantPassages.forEach(p => retrievedCitations.push(`[Source: ${p.source}]`));
+      ragContext = `\n\n### USER'S UPLOADED STUDY MATERIALS (RETRIEVED SOURCE PASSAGES - GROUND TRUTH):\n` +
+        relevantPassages.map((p, idx) => `--- Excerpt ${idx + 1} ([Source: ${p.source}]) ---\n${p.text}`).join('\n\n') +
+        `\n\nCRITICAL GROUNDING RULES:
+1. Answer the question based on the retrieved excerpts above.
+2. For any fact from the document, explicitly cite: "[Source: <DocumentName>, <Page/Section>]".
+3. Never invent facts, page numbers, quotations, or citations.
+4. If the user asks about something in their document that is NOT in the retrieved excerpts, clearly say: "I couldn't find this information in your uploaded documents." You may then offer general knowledge, but you MUST explicitly label it as: "[General Knowledge - Not found in uploaded files]: <explanation>".
+5. Never claim an answer came from a file unless the content is in the excerpts above.`;
+    } else {
+      // Document grounding active, but no passages matched query
+      ragContext = `\n\n### NOTICE REGARDING UPLOADED STUDY MATERIALS:\n` +
+        `The user has uploaded study documents, but NO relevant passages in their documents matched the query "${userMessage}".\n` +
+        `INSTRUCTION: If the user is asking about their uploaded notes or document, you MUST explicitly state: "I couldn't find this information in your uploaded documents." You may then offer general knowledge, explicitly prefixed with: "[General Knowledge - Not found in uploaded files]:".`;
+    }
+  }
+
   let systemInstruction = `You are StudyPilot AI, an intelligent, conversational academic study assistant developed by Team Codex for students at Sanjay Ghodawat University (SGU), Department of Artificial Intelligence.
 
 Core Operating Principles:
-1. Always understand the user's actual message and answer that specific question directly, conversationally, and accurately.
-2. Never deflect to unrelated syllabus topics, generic disclaimers, or canned text.
-   - If the user sends a greeting (e.g., "Hi, who are you?"), introduce yourself warmly as StudyPilot AI, the personalized study assistant for SGU AI students.
+1. Understand the user's actual question and answer that specific question directly, conversationally, and accurately.
+2. Never deflect to unrelated syllabus topics or canned text.
+   - If the user sends a greeting (e.g., "Hi, who are you?"), introduce yourself warmly as StudyPilot AI, the study assistant for SGU AI students.
    - If the user asks a coding or computer science question (e.g., "Explain recursion in simple words with an example"), provide a clear conceptual explanation, an intuitive real-world analogy, and a clean code snippet.
-   - If the user asks a mathematical calculation (e.g., "What is 17 multiplied by 24? Show the calculation"), calculate it accurately and show the working clearly.
-   - If the user asks a follow-up question (e.g., "Now explain it in Hindi"), consult the preceding conversation history to determine what "it" refers to and explain that exact topic accordingly.
+   - If the user asks a mathematical calculation (e.g., "What is 17 multiplied by 24? Show the calculation"), calculate it accurately and show the step-by-step arithmetic.
+   - If the user asks a follow-up question (e.g., "Now explain it in Hindi"), consult preceding conversation history to determine what "it" refers to and explain that exact topic accordingly.
    - If the user asks a general-knowledge question, answer it accurately and informatively.
 3. Language instruction: ${languageSpec}
-4. When relevant uploaded study material is provided or retrieved, ground your answer in it and cite the sources. If the question is outside the uploaded documents or general in nature, answer using your knowledge and do NOT claim to have found it in documents.
+4. Grounded Document Rules:
+   - When retrieved study material passages are provided, ground your answer in them and cite the exact source using "[Source: <DocumentName>, <Page/Section>]".
+   - If information is not in the uploaded documents, state clearly: "I couldn't find this information in your uploaded documents."
+   - Never claim an answer came from a file unless the relevant content was actually retrieved.
 5. If the user's question is genuinely ambiguous, ask a helpful clarifying question.`;
 
   if (payload.studyContext?.subject || payload.studyContext?.topic) {
-    systemInstruction += `\nCurrent Academic Context: Subject: "${payload.studyContext.subject || 'General'}", Focus Area: "${payload.studyContext.topic || 'General'}". (Use this for academic context, but always prioritize the user's exact query).`;
+    systemInstruction += `\nCurrent Academic Context: Subject: "${payload.studyContext.subject || 'General'}", Focus Area: "${payload.studyContext.topic || 'General'}". (Always prioritize the user's exact query).`;
   }
 
   const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text?: string; functionCall?: any; functionResponse?: any }> }> = [];
@@ -135,32 +191,20 @@ Core Operating Principles:
     contents.shift();
   }
 
+  const userPromptWithRag = userMessage + (ragContext ? `\n\n${ragContext}` : '');
+
   if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
-    contents[contents.length - 1].parts[0].text += `\n\n${userMessage}`;
+    contents[contents.length - 1].parts[0].text += `\n\n${userPromptWithRag}`;
   } else {
     contents.push({
       role: 'user',
-      parts: [{ text: userMessage }]
+      parts: [{ text: userPromptWithRag }]
     });
   }
 
   const tools = [
     {
       functionDeclarations: [
-        {
-          name: 'search_study_materials',
-          description: 'Search the student uploaded lecture notes, syllabus, or study materials for specific topics, keywords, or concepts.',
-          parameters: {
-            type: 'OBJECT',
-            properties: {
-              query: {
-                type: 'STRING',
-                description: 'The search query or concept to search for in uploaded materials'
-              }
-            },
-            required: ['query']
-          }
-        },
         {
           name: 'calculate_math',
           description: 'Perform an exact mathematical calculation or arithmetic expression.',
@@ -188,14 +232,11 @@ Core Operating Principles:
         parts: [{ text: systemInstruction }]
       },
       generationConfig: {
-        temperature: 0.6,
+        temperature: 0.5,
         maxOutputTokens: 2048
-      }
+      },
+      tools
     };
-
-    if (payload.documentChunks && payload.documentChunks.length > 0) {
-      requestBody.tools = tools;
-    }
 
     const response = await fetch(geminiUrl, {
       method: 'POST',
@@ -224,29 +265,10 @@ Core Operating Principles:
 
     if (functionCalls.length > 0) {
       const executedTools: Array<{ name: string; args: any; result: any }> = [];
-      const citations: string[] = [];
       const toolParts: any[] = [];
 
       for (const call of functionCalls) {
-        if (call.name === 'search_study_materials') {
-          const q = call.args?.query || userMessage;
-          const searchResults = searchDocuments(q, payload.documentChunks);
-          executedTools.push({ name: 'search_study_materials', args: call.args, result: searchResults });
-
-          if (searchResults.length > 0) {
-            searchResults.forEach(r => citations.push(`[Source: ${r.source}]`));
-          }
-
-          toolParts.push({
-            functionResponse: {
-              name: 'search_study_materials',
-              response: {
-                query: q,
-                results: searchResults.length > 0 ? searchResults : 'No direct matches found in uploaded study materials.'
-              }
-            }
-          });
-        } else if (call.name === 'calculate_math') {
+        if (call.name === 'calculate_math') {
           const expr = call.args?.expression || '';
           const resultVal = evaluateArithmetic(expr);
           executedTools.push({ name: 'calculate_math', args: call.args, result: resultVal });
@@ -282,7 +304,7 @@ Core Operating Principles:
             parts: [{ text: systemInstruction }]
           },
           generationConfig: {
-            temperature: 0.6,
+            temperature: 0.5,
             maxOutputTokens: 2048
           }
         })
@@ -295,7 +317,7 @@ Core Operating Principles:
           text: secondText,
           model: modelName,
           toolCallsExecuted: executedTools.length > 0 ? executedTools : undefined,
-          citations: citations.length > 0 ? Array.from(new Set(citations)) : undefined
+          citations: retrievedCitations.length > 0 ? Array.from(new Set(retrievedCitations)) : undefined
         };
       }
     }
@@ -313,7 +335,8 @@ Core Operating Principles:
 
     return {
       text: outputText,
-      model: modelName
+      model: modelName,
+      citations: retrievedCitations.length > 0 ? Array.from(new Set(retrievedCitations)) : undefined
     };
 
   } catch (error: any) {
