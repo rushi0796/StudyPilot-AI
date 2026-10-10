@@ -63,28 +63,14 @@ export const SettingsView: React.FC = () => {
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const handleTestConnection = async () => {
-    if (!apiKeyInput.trim()) {
-      setKeyTestStatus({
-        tested: true,
-        success: false,
-        message: 'Please paste your Google Gemini API key first.'
-      });
-      return;
-    }
-
     setIsTestingKey(true);
-    const res = await testGeminiConnection(apiKeyInput.trim(), selectedModel);
+    const res = await testGeminiConnection();
     setIsTestingKey(false);
     setKeyTestStatus({
       tested: true,
       success: res.success,
       message: res.message
     });
-
-    if (res.success) {
-      setGeminiApiKey(apiKeyInput.trim());
-      setAiModel(selectedModel);
-    }
   };
 
   const handleSaveProfile = (e: React.FormEvent) => {
@@ -178,67 +164,42 @@ export const SettingsView: React.FC = () => {
           </div>
 
           <div className="space-y-3 text-xs">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-charcoal-700 font-bold flex items-center gap-1.5">
-                  <Key className="w-3.5 h-3.5 text-forest-600" />
-                  <span>Gemini API Key</span>
-                </label>
-                <a
-                  href="https://aistudio.google.com/app/apikey"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-forest-600 hover:text-forest-800 underline flex items-center gap-1 font-semibold"
-                >
-                  <span>Get free key from Google AI Studio</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+            <div className="p-3.5 rounded-xl bg-sage-50 border border-sage-200 text-charcoal-700 leading-relaxed space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-forest-800">
+                <Key className="w-4 h-4 text-forest-600" />
+                <span>Server-Side Environment Security</span>
               </div>
-
-              <div className="relative">
-                <input
-                  type={showKey ? 'text' : 'password'}
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  placeholder="AIzaSy..."
-                  className="w-full px-3.5 py-2.5 pr-24 rounded-xl bg-academic-bg border border-[#E5E0D5] text-charcoal-900 font-mono text-xs focus:border-forest-500 focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowKey(!showKey)}
-                  className="absolute right-2 top-2 p-1 text-charcoal-400 hover:text-charcoal-700 rounded"
-                  title={showKey ? "Hide key" : "Show key"}
-                >
-                  {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              <p className="text-[11px] text-charcoal-400 mt-1">
-                Your key is stored strictly in your browser's private local storage. It is never transmitted to third parties.
+              <p className="text-[11px] text-charcoal-600">
+                To protect credentials according to security standards, <code>GEMINI_API_KEY</code> is loaded strictly on the server (via Vercel environment variables or local <code>.env.local</code>). Client-side keys are never leaked to browser networks or logs.
               </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
               <div>
-                <label className="block text-charcoal-700 font-bold mb-1">Model Selection</label>
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-academic-bg border border-[#E5E0D5] text-charcoal-900 focus:border-forest-500 focus:outline-none font-medium"
-                >
-                  <option value="gemini-1.5-flash">Gemini 1.5 Flash (Recommended - Ultra Fast)</option>
-                  <option value="gemini-2.5-flash">Gemini 2.5 Flash (Next-Gen Reasoning)</option>
-                </select>
+                <label className="block text-charcoal-700 font-bold mb-1">Model Engine</label>
+                <div className="px-3.5 py-2 rounded-xl bg-white border border-[#E5E0D5] text-charcoal-900 font-medium">
+                  Gemini 2.5 Flash (Production Reasoning)
+                </div>
               </div>
 
               <div className="flex items-end">
                 <button
                   type="button"
                   disabled={isTestingKey}
-                  onClick={handleTestConnection}
+                  onClick={async () => {
+                    setIsTestingKey(true);
+                    const res = await testGeminiConnection();
+                    setIsTestingKey(false);
+                    setKeyTestStatus({
+                      tested: true,
+                      success: res.success,
+                      message: res.message
+                    });
+                  }}
                   className="w-full py-2 px-4 rounded-xl bg-forest-50 hover:bg-forest-100 text-forest-800 font-bold border border-forest-200 transition-colors flex items-center justify-center gap-2"
                 >
                   <Sparkles className="w-4 h-4 text-forest-600" />
-                  <span>{isTestingKey ? 'Connecting to Google...' : 'Test Connection'}</span>
+                  <span>{isTestingKey ? 'Checking Server...' : 'Check Server Connection'}</span>
                 </button>
               </div>
             </div>

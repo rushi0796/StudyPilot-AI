@@ -19,11 +19,11 @@ import {
   FolderOpen,
   Info,
   CheckCircle2,
-  Cpu
+  AlertCircle
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Language, DifficultyLevel, ChatMessage, DocumentChunk } from '../../types';
-import { askGeminiTutor, isLiveAiAvailable, getStoredModel } from '../../services/aiProvider';
+import { askGeminiTutor, ChatHistoryTurn } from '../../services/aiProvider';
 
 export const AIAssistantView: React.FC = () => {
   const { 
@@ -52,39 +52,39 @@ export const AIAssistantView: React.FC = () => {
   const [simplificationLevel, setSimplificationLevel] = useState(1);
   const [isTyping, setIsTyping] = useState(false);
   const [groundWithFiles, setGroundWithFiles] = useState(true);
+  const [chatError, setChatError] = useState<{ message: string; failedQuery: string } | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const activeDoc = uploadedDocuments.find(d => d.id === activeDocumentId) || uploadedDocuments[0];
-  const isLive = isLiveAiAvailable();
-  const currentModel = getStoredModel();
 
   // Initial greeting conversation
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'msg_1',
       sender: 'assistant',
-      timestamp: 'Today at 02:30 PM',
+      timestamp: 'Today',
       language: studentProfile.preferredLanguage,
-      content: `Hello ${studentProfile.name}! I am your **StudyPilot AI Academic Tutor**, personalized for Sanjay Ghodawat University **${studentProfile.branch}** (${studentProfile.semester}).
+      content: `Hello ${studentProfile.name}! I am **StudyPilot AI**, your personalized academic tutor and study assistant for Sanjay Ghodawat University **${studentProfile.branch}** (${studentProfile.semester}).
 
-${isLive ? `⚡ **Live Generative Intelligence Active (${currentModel})**: Connected to Google Gemini with document grounding and semantic citation search.` : `📚 **Operating in Local Academic Demo Mode**: Aligned with the SGU curriculum rubric. You can add your free Google Gemini API key in **Settings** anytime to unlock dynamic live generation!`}
+⚡ **Powered by Google Gemini Generative Intelligence**: I can answer conceptual doubts, explain code, solve mathematical calculations, explain in Hindi or Telugu, or ground answers directly in your uploaded syllabus and lecture notes.
 
-You can ask any doubt from your syllabus or uploaded study materials:
-- *"Explain database normalization in simple language with an analogy"*
-- *"Why is 3NF preferred over 2NF in university exam questions?"*
-- *"Explain ACID properties with real-world banking transactions"*`,
+Try asking me:
+- *"Hi, who are you?"*
+- *"Explain recursion in simple words with an example"*
+- *"What is 17 multiplied by 24? Show the calculation"*
+- *"Explain database normalization and why 3NF is used"*`,
       followUpSuggestions: [
-        "Explain database normalization in simple language",
-        "Why is 3NF preferred over 2NF?",
-        "Explain ACID properties of transactions"
+        "Explain recursion with a real-world example",
+        "What is 17 multiplied by 24?",
+        "Why is 3NF preferred over 2NF?"
       ]
     }
   ]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
+  }, [messages, isTyping, chatError]);
 
   const handleCopy = (id: string, text: string) => {
     navigator.clipboard.writeText(text);
@@ -99,8 +99,11 @@ You can ask any doubt from your syllabus or uploaded study materials:
   };
 
   const handleSendMessage = async (textToSend?: string) => {
+    if (isTyping) return;
     const text = textToSend || inputMessage;
     if (!text.trim()) return;
+
+    setChatError(null);
 
     const userMsg: ChatMessage = {
       id: `msg_${Date.now()}`,
@@ -112,6 +115,14 @@ You can ask any doubt from your syllabus or uploaded study materials:
       topic: selectedTopic,
       difficulty
     };
+
+    // Format previous conversation turns for Gemini multi-turn context
+    const historyTurns: ChatHistoryTurn[] = messages
+      .filter(m => m.id !== 'msg_1') // skip the initial greeting template so history begins with user turn
+      .map(m => ({
+        role: m.sender === 'user' ? 'user' : 'model',
+        content: m.content
+      }));
 
     setMessages(prev => [...prev, userMsg]);
     if (!textToSend) setInputMessage('');
@@ -126,6 +137,7 @@ You can ask any doubt from your syllabus or uploaded study materials:
 
       const responseData = await askGeminiTutor({
         query: text,
+        history: historyTurns,
         subject: activeSubject.name,
         topic: selectedTopic,
         language: studentProfile.preferredLanguage,
@@ -150,8 +162,12 @@ You can ask any doubt from your syllabus or uploaded study materials:
       };
 
       setMessages(prev => [...prev, assistantMsg]);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('Chat error:', err);
+      setChatError({
+        message: err?.message || 'Failed to receive response from Gemini AI. Please check server configuration.',
+        failedQuery: text
+      });
     } finally {
       setIsTyping(false);
     }
@@ -159,59 +175,12 @@ You can ask any doubt from your syllabus or uploaded study materials:
 
   // Progressive Simplification: "Teach Me Until I Understand"
   const handleTeachMeSimply = async () => {
+    if (isTyping) return;
     const nextLevel = simplificationLevel + 1;
     setSimplificationLevel(nextLevel);
 
-    const promptText = `Explain ${selectedTopic} even more simply! (Simplification Level ${nextLevel})`;
-    
-    const userMsg: ChatMessage = {
-      id: `msg_${Date.now()}`,
-      sender: 'user',
-      timestamp: 'Just now',
-      language: studentProfile.preferredLanguage,
-      content: promptText,
-      topic: selectedTopic
-    };
-
-    setMessages(prev => [...prev, userMsg]);
-    setIsTyping(true);
-
-    try {
-      let chunksToPass: DocumentChunk[] = [];
-      if (groundWithFiles && activeDoc) {
-        chunksToPass = activeDoc.chunks.slice(0, 3);
-      }
-
-      const responseData = await askGeminiTutor({
-        query: `Explain ${selectedTopic} in ultra-simple ELI5 everyday language with a visual analogy`,
-        subject: activeSubject.name,
-        topic: selectedTopic,
-        language: studentProfile.preferredLanguage,
-        difficulty: 'simple',
-        simplificationLevel: nextLevel,
-        documentChunks: chunksToPass
-      });
-
-      const assistantMsg: ChatMessage = {
-        id: `msg_asst_${Date.now()}`,
-        sender: 'assistant',
-        timestamp: 'Just now',
-        language: studentProfile.preferredLanguage,
-        content: responseData.content,
-        topic: selectedTopic,
-        difficulty: 'simple',
-        followUpSuggestions: ["Explain More Simply", "Give Me an Example", "Test My Understanding"],
-        quizPrompt: responseData.quiz,
-        audioAvailable: true,
-        documentCitations: responseData.citations
-      };
-
-      setMessages(prev => [...prev, assistantMsg]);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsTyping(false);
-    }
+    const promptText = `Explain this even more simply in intuitive everyday terms! (Simplification Level ${nextLevel})`;
+    await handleSendMessage(promptText);
   };
 
   // Quiz submission inside chat
@@ -237,31 +206,27 @@ You can ask any doubt from your syllabus or uploaded study materials:
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-130px)] lg:h-[calc(100vh-125px)] bg-white rounded-3xl border border-[#E5E0D5] overflow-hidden shadow-card animate-in fade-in duration-200">
+    <div className="flex flex-col h-[calc(100vh-130px)] lg:h-[calc(100vh-125px)] bg-white rounded-3xl border border-academic-border overflow-hidden shadow-sm animate-in fade-in duration-200">
       
       {/* 1. Assistant Top Control Bar */}
-      <div className="bg-[#FDFCF9] border-b border-[#E5E0D5] p-3 lg:px-5 flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
+      <div className="bg-[#FDFCF9] border-b border-academic-border p-3 lg:px-5 flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
         
         {/* Left: Active Subject & AI Engine Badge */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-forest-100 border border-forest-200 text-forest-700 flex items-center justify-center font-bold shadow-subtle">
+          <div className="w-10 h-10 rounded-xl bg-sage-100 border border-sage-200 text-forest-700 flex items-center justify-center font-bold">
             <Bot className="w-5 h-5 text-forest-600" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-bold text-charcoal-900 flex items-center gap-1.5">
-                AI Study Tutor
+                StudyPilot AI Tutor
               </h2>
-              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                isLive 
-                  ? 'bg-forest-100 text-forest-800 border border-forest-300' 
-                  : 'bg-sage-100 text-charcoal-700 border border-[#E5E0D5]'
-              }`}>
-                {isLive ? `Gemini 1.5 Flash` : 'Academic Demo Engine'}
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sage-100 text-forest-800 border border-sage-200">
+                Gemini 2.5 Flash
               </span>
             </div>
             <p className="text-[11px] text-charcoal-400">
-              Curriculum: {activeSubject.name} ({activeSubject.code})
+              Department of Artificial Intelligence • Sanjay Ghodawat University
             </p>
           </div>
         </div>
@@ -271,7 +236,7 @@ You can ask any doubt from your syllabus or uploaded study materials:
           
           {/* Document Grounding Selector */}
           {uploadedDocuments.length > 0 && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white border border-[#E5E0D5] text-charcoal-700">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white border border-academic-border text-charcoal-700">
               <FolderOpen className="w-3.5 h-3.5 text-forest-600" />
               <select
                 value={activeDocumentId || ''}
@@ -289,27 +254,29 @@ You can ask any doubt from your syllabus or uploaded study materials:
             </div>
           )}
 
-          {/* Topic Selector */}
+          {/* Subject Context Selector */}
           <select
-            value={selectedTopic}
-            onChange={(e) => setSelectedTopic(e.target.value)}
-            className="px-2.5 py-1.5 rounded-xl bg-white border border-[#E5E0D5] text-charcoal-800 focus:border-forest-500 focus:outline-none text-xs font-medium shadow-subtle"
+            value={activeSubject.id}
+            onChange={(e) => {
+              const sub = subjects.find(s => s.id === e.target.value);
+              if (sub) setSelectedTopic(sub.units[0]?.topics[0]?.title || selectedTopic);
+            }}
+            className="px-2.5 py-1.5 rounded-xl bg-white border border-academic-border text-charcoal-800 focus:border-forest-600 focus:outline-none text-xs font-medium"
           >
-            <option value="Relational Database Normalization">Topic: Normalization (3NF/BCNF)</option>
-            <option value="Transaction Concepts & ACID Properties">Topic: ACID Properties</option>
-            <option value="B-Trees and B+ Trees Architecture">Topic: B+ Tree Indexing</option>
-            <option value="Conflict Serializability & Graphs">Topic: Conflict Serializability</option>
+            {subjects.map(s => (
+              <option key={s.id} value={s.id}>{s.code}: {s.name}</option>
+            ))}
           </select>
 
           {/* Difficulty Toggle: Simple | Standard | Detailed */}
-          <div className="flex items-center bg-academic-bg p-0.5 rounded-xl border border-[#E5E0D5]">
+          <div className="flex items-center bg-academic-bg p-0.5 rounded-xl border border-academic-border">
             {(['simple', 'standard', 'detailed'] as DifficultyLevel[]).map((level) => (
               <button
                 key={level}
                 onClick={() => setDifficulty(level)}
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-bold capitalize transition-all ${
                   difficulty === level 
-                    ? 'bg-forest-500 text-white shadow-subtle' 
+                    ? 'bg-forest-600 text-white shadow-sm' 
                     : 'text-charcoal-400 hover:text-charcoal-800'
                 }`}
               >
@@ -322,7 +289,7 @@ You can ask any doubt from your syllabus or uploaded study materials:
           <select
             value={studentProfile.preferredLanguage}
             onChange={(e) => updateStudentProfile({ preferredLanguage: e.target.value as Language })}
-            className="px-2.5 py-1.5 rounded-xl bg-white border border-[#E5E0D5] text-charcoal-800 focus:border-forest-500 focus:outline-none text-xs uppercase font-bold shadow-subtle"
+            className="px-2.5 py-1.5 rounded-xl bg-white border border-academic-border text-charcoal-800 focus:border-forest-600 focus:outline-none text-xs uppercase font-bold"
           >
             <option value="en">EN (English)</option>
             <option value="hi">HI (हिंदी)</option>
@@ -336,21 +303,17 @@ You can ask any doubt from your syllabus or uploaded study materials:
       <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-5 bg-[#FDFCF9]">
         
         {/* Banner Notice */}
-        <div className="p-3 rounded-2xl bg-white border border-[#E5E0D5] text-[11px] text-charcoal-700 flex items-center justify-between gap-2 shadow-subtle">
+        <div className="p-3 rounded-2xl bg-white border border-academic-border text-[11px] text-charcoal-700 flex items-center justify-between gap-2 shadow-sm">
           <div className="flex items-center gap-2">
             <Info className="w-4 h-4 text-forest-600 flex-shrink-0" />
             <span>
-              {isLive ? (
-                <>Connected to <strong>Google Gemini</strong>. Grounded in university curriculum standards.</>
-              ) : (
-                <>Operating in demo mode. Add your free <strong>Gemini API Key</strong> in <button onClick={() => setActiveView('settings')} className="text-forest-600 font-bold underline">Settings</button> to unlock live generation.</>
-              )}
+              Connected to <strong>Google Gemini API</strong> via server-side agent. Conversational multi-turn context and tool calling active.
             </span>
           </div>
           {groundWithFiles && activeDoc && (
-            <span className="text-[10px] text-forest-700 font-semibold flex items-center gap-1 bg-forest-50 px-2 py-0.5 rounded-full border border-forest-200">
+            <span className="text-[10px] text-forest-800 font-semibold flex items-center gap-1 bg-sage-100 px-2.5 py-0.5 rounded-full border border-sage-200">
               <CheckCircle2 className="w-3 h-3 text-forest-600" />
-              <span>Grounded in: {activeDoc.name}</span>
+              <span>Grounded: {activeDoc.name}</span>
             </span>
           )}
         </div>
@@ -365,22 +328,22 @@ You can ask any doubt from your syllabus or uploaded study materials:
               className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in duration-200`}
             >
               {!isUser && (
-                <div className="w-8 h-8 rounded-xl bg-forest-500 text-white flex items-center justify-center flex-shrink-0 shadow-subtle">
+                <div className="w-8 h-8 rounded-xl bg-forest-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
                   <Bot className="w-4 h-4" />
                 </div>
               )}
 
               <div className={`max-w-2xl rounded-2xl p-4 lg:p-5 text-xs sm:text-sm leading-relaxed ${
                 isUser 
-                  ? 'bg-forest-500 text-white shadow-card' 
-                  : 'bg-white border border-[#E5E0D5] text-charcoal-900 shadow-subtle'
+                  ? 'bg-forest-600 text-white shadow-sm' 
+                  : 'bg-white border border-academic-border text-charcoal-900 shadow-sm'
               }`}>
                 
                 {/* Assistant Message Header Actions */}
                 {!isUser && (
-                  <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-[#E5E0D5] text-xs">
+                  <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-academic-border text-xs">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-forest-800">StudyPilot AI Tutor</span>
+                      <span className="font-bold text-forest-800">StudyPilot AI</span>
                       <span className="text-[10px] text-charcoal-400">• {msg.timestamp}</span>
                     </div>
 
@@ -390,8 +353,8 @@ You can ask any doubt from your syllabus or uploaded study materials:
                         onClick={() => speakText(msg.content, msg.language)}
                         className={`p-1.5 rounded-lg transition-colors ${
                           isSpeaking 
-                            ? 'text-forest-700 bg-forest-100 animate-pulse' 
-                            : 'text-charcoal-400 hover:text-charcoal-700 hover:bg-sage-100'
+                            ? 'text-forest-700 bg-sage-100 animate-pulse' 
+                            : 'text-charcoal-400 hover:text-charcoal-700 hover:bg-sage-50'
                         }`}
                         title="Listen to audio explanation"
                       >
@@ -401,7 +364,7 @@ You can ask any doubt from your syllabus or uploaded study materials:
                       {/* Copy Explanation */}
                       <button
                         onClick={() => handleCopy(msg.id, msg.content)}
-                        className="p-1.5 rounded-lg text-charcoal-400 hover:text-charcoal-700 hover:bg-sage-100 transition-colors"
+                        className="p-1.5 rounded-lg text-charcoal-400 hover:text-charcoal-700 hover:bg-sage-50 transition-colors"
                         title="Copy text"
                       >
                         {copiedId === msg.id ? <Check className="w-3.5 h-3.5 text-forest-600" /> : <Copy className="w-3.5 h-3.5" />}
@@ -410,7 +373,7 @@ You can ask any doubt from your syllabus or uploaded study materials:
                       {/* Bookmark Topic */}
                       <button
                         onClick={() => toggleBookmark(msg.topic || selectedTopic)}
-                        className="p-1.5 rounded-lg text-charcoal-400 hover:text-gold-500 hover:bg-sage-100 transition-colors"
+                        className="p-1.5 rounded-lg text-charcoal-400 hover:text-gold-500 hover:bg-sage-50 transition-colors"
                         title={isBookmarked ? "Topic bookmarked" : "Bookmark topic"}
                       >
                         {isBookmarked ? <BookmarkCheck className="w-3.5 h-3.5 text-gold-500 fill-gold-500" /> : <Bookmark className="w-3.5 h-3.5" />}
@@ -420,17 +383,17 @@ You can ask any doubt from your syllabus or uploaded study materials:
                 )}
 
                 {/* Message Content with Markdown Formatting */}
-                <div className="prose prose-sm max-w-none space-y-2 whitespace-pre-wrap text-charcoal-900">
+                <div className="prose prose-sm max-w-none space-y-2 whitespace-pre-wrap text-charcoal-900 font-sans">
                   {msg.content}
                 </div>
 
                 {/* Citations if available */}
                 {!isUser && msg.documentCitations && msg.documentCitations.length > 0 && (
-                  <div className="mt-3 pt-2.5 border-t border-[#E5E0D5] text-[11px] text-charcoal-400">
+                  <div className="mt-3 pt-2.5 border-t border-academic-border text-[11px] text-charcoal-500">
                     <span className="font-bold text-forest-700 block mb-1">Document Citations:</span>
                     <div className="flex flex-wrap gap-1.5">
                       {msg.documentCitations.map((cit, idx) => (
-                        <span key={idx} className="px-2 py-0.5 rounded-md bg-sage-50 text-forest-800 border border-forest-200 text-[10px] font-mono">
+                        <span key={idx} className="px-2 py-0.5 rounded-md bg-sage-50 text-forest-800 border border-sage-200 text-[10px] font-mono">
                           {cit}
                         </span>
                       ))}
@@ -440,8 +403,8 @@ You can ask any doubt from your syllabus or uploaded study materials:
 
                 {/* Embedded Mini-Quiz if available */}
                 {!isUser && msg.quizPrompt && (
-                  <div className="mt-4 p-3.5 rounded-xl bg-academic-bg border border-[#E5E0D5] text-xs">
-                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#E5E0D5]">
+                  <div className="mt-4 p-3.5 rounded-xl bg-academic-bg border border-academic-border text-xs">
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-academic-border">
                       <span className="font-bold text-forest-800 flex items-center gap-1.5">
                         <HelpCircle className="w-3.5 h-3.5 text-forest-600" />
                         Quick Understanding Check
@@ -467,11 +430,11 @@ You can ask any doubt from your syllabus or uploaded study materials:
                             className={`w-full text-left p-2.5 rounded-lg border transition-all text-xs flex items-center justify-between ${
                               answerState
                                 ? isCorrect
-                                  ? 'bg-forest-100 border-forest-400 text-forest-900 font-bold'
+                                  ? 'bg-sage-100 border-forest-400 text-forest-900 font-bold'
                                   : isSelected
-                                    ? 'bg-rose-100 border-rose-300 text-rose-900 font-bold'
-                                    : 'bg-white border-[#E5E0D5] text-charcoal-400'
-                                : 'bg-white border-[#E5E0D5] hover:border-forest-400 text-charcoal-800'
+                                    ? 'bg-rose-50 border-rose-300 text-rose-900 font-bold'
+                                    : 'bg-white border-academic-border text-charcoal-400'
+                                : 'bg-white border-academic-border hover:border-forest-400 text-charcoal-800'
                             }`}
                           >
                             <span>{opt}</span>
@@ -484,7 +447,7 @@ You can ask any doubt from your syllabus or uploaded study materials:
                     {answeredQuizzes[msg.id] && (
                       <div className={`mt-2.5 p-2 rounded-lg text-[11px] ${
                         answeredQuizzes[msg.id].correct 
-                          ? 'bg-forest-100 text-forest-900 border border-forest-300' 
+                          ? 'bg-sage-100 text-forest-900 border border-sage-200' 
                           : 'bg-rose-50 text-rose-900 border border-rose-200'
                       }`}>
                         <p className="font-bold">
@@ -503,31 +466,28 @@ You can ask any doubt from your syllabus or uploaded study materials:
 
                 {/* Follow-up Quick Action Buttons */}
                 {!isUser && msg.followUpSuggestions && (
-                  <div className="mt-4 pt-3 border-t border-[#E5E0D5] flex flex-wrap gap-2">
+                  <div className="mt-4 pt-3 border-t border-academic-border flex flex-wrap gap-2">
                     <button
                       onClick={handleTeachMeSimply}
-                      className="px-2.5 py-1.5 rounded-lg bg-forest-50 hover:bg-forest-100 text-forest-700 border border-forest-200 text-[11px] font-bold flex items-center gap-1.5 transition-colors"
+                      disabled={isTyping}
+                      className="px-2.5 py-1.5 rounded-lg bg-sage-50 hover:bg-sage-100 text-forest-800 border border-sage-200 text-[11px] font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50"
                       title="Keep explaining simpler and simpler without restarting"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                       <span>Explain More Simply</span>
                     </button>
 
-                    <button
-                      onClick={() => handleSendMessage(`Give me a detailed real-world example of ${selectedTopic}`)}
-                      className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-sage-50 text-charcoal-700 border border-[#E5E0D5] text-[11px] font-medium flex items-center gap-1.5 transition-colors"
-                    >
-                      <Lightbulb className="w-3.5 h-3.5 text-gold-500" />
-                      <span>Give Me an Example</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleSendMessage(`Test my understanding on ${selectedTopic} with a 5-mark university exam question`)}
-                      className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-sage-50 text-charcoal-700 border border-[#E5E0D5] text-[11px] font-medium flex items-center gap-1.5 transition-colors"
-                    >
-                      <HelpCircle className="w-3.5 h-3.5 text-forest-600" />
-                      <span>Test My Understanding</span>
-                    </button>
+                    {msg.followUpSuggestions.slice(0, 2).map((sugg, sIdx) => (
+                      <button
+                        key={sIdx}
+                        disabled={isTyping}
+                        onClick={() => handleSendMessage(sugg)}
+                        className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-sage-50 text-charcoal-700 border border-academic-border text-[11px] font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                      >
+                        <Lightbulb className="w-3.5 h-3.5 text-gold-600" />
+                        <span>{sugg}</span>
+                      </button>
+                    ))}
                   </div>
                 )}
 
@@ -539,13 +499,33 @@ You can ask any doubt from your syllabus or uploaded study materials:
         {/* AI Typing Indicator */}
         {isTyping && (
           <div className="flex gap-3 justify-start animate-in fade-in duration-150">
-            <div className="w-8 h-8 rounded-xl bg-forest-500 text-white flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-forest-600 text-white flex items-center justify-center flex-shrink-0">
               <Bot className="w-4 h-4 animate-bounce" />
             </div>
-            <div className="p-4 rounded-2xl bg-white border border-[#E5E0D5] text-xs text-charcoal-700 flex items-center gap-2 shadow-subtle">
-              <span className="w-2 h-2 rounded-full bg-forest-500 animate-ping" />
-              <span>StudyPilot AI is synthesizing explanation with university marking rubrics...</span>
+            <div className="p-4 rounded-2xl bg-white border border-academic-border text-xs text-charcoal-700 flex items-center gap-2.5 shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-forest-600 animate-ping" />
+              <span>StudyPilot AI is formulating answer with Gemini...</span>
             </div>
+          </div>
+        )}
+
+        {/* Error Notification with Direct Retry Action */}
+        {chatError && (
+          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-rose-900">Unable to generate response from Gemini</p>
+                <p className="text-rose-700 mt-0.5 leading-relaxed">{chatError.message}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => handleSendMessage(chatError.failedQuery)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs shadow-sm self-start sm:self-auto transition-colors flex-shrink-0"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Retry Question</span>
+            </button>
           </div>
         )}
 
@@ -554,7 +534,7 @@ You can ask any doubt from your syllabus or uploaded study materials:
 
       {/* 3. Audio Player Bar (when speaking) */}
       {isSpeaking && (
-        <div className="bg-white border-t border-[#E5E0D5] px-4 py-2 flex items-center justify-between text-xs animate-in slide-in-from-bottom-2">
+        <div className="bg-white border-t border-academic-border px-4 py-2 flex items-center justify-between text-xs animate-in slide-in-from-bottom-2">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1 h-5">
               <span className="w-1 bg-forest-600 rounded-full wave-bar-1" />
@@ -586,7 +566,7 @@ You can ask any doubt from your syllabus or uploaded study materials:
       )}
 
       {/* 4. Chat Input Bar */}
-      <div className="bg-white border-t border-[#E5E0D5] p-3 lg:p-4 flex-shrink-0">
+      <div className="bg-white border-t border-academic-border p-3 lg:p-4 flex-shrink-0">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -597,15 +577,16 @@ You can ask any doubt from your syllabus or uploaded study materials:
           <input
             type="text"
             value={inputMessage}
+            disabled={isTyping}
             onChange={(e) => setInputMessage(e.target.value)}
-            placeholder={`Ask any doubt in ${studentProfile.preferredLanguage === 'hi' ? 'Hindi' : studentProfile.preferredLanguage === 'te' ? 'Telugu' : 'English'} (e.g. 'Explain database normalization in simple language')...`}
-            className="flex-1 px-4 py-3 rounded-xl bg-academic-bg border border-[#E5E0D5] text-charcoal-900 placeholder-charcoal-400 focus:border-forest-500 focus:outline-none text-xs sm:text-sm"
+            placeholder={`Ask any doubt or question (e.g. 'Explain recursion', '17 * 24', 'Hi, who are you?')...`}
+            className="flex-1 px-4 py-3 rounded-xl bg-academic-bg border border-academic-border text-charcoal-900 placeholder-charcoal-400 focus:border-forest-600 focus:outline-none text-xs sm:text-sm disabled:opacity-60"
           />
 
           <button
             type="submit"
-            disabled={!inputMessage.trim()}
-            className="px-5 py-3 rounded-xl bg-forest-500 hover:bg-forest-600 disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-card flex items-center gap-2 transition-all"
+            disabled={isTyping || !inputMessage.trim()}
+            className="px-5 py-3 rounded-xl bg-forest-600 hover:bg-forest-700 disabled:opacity-40 text-white font-bold text-xs sm:text-sm shadow-sm flex items-center gap-2 transition-all"
           >
             <span className="hidden sm:inline">Ask AI</span>
             <Send className="w-4 h-4" />
