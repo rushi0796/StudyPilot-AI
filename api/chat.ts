@@ -1,5 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
-
 export interface ChatHistoryItem {
   role: 'user' | 'assistant' | 'model';
   content: string;
@@ -23,14 +21,6 @@ export interface ChatRequestPayload {
   };
   documentChunks?: DocumentChunkContext[];
   model?: string;
-}
-
-function sanitizeEnvironment() {
-  const badBaseUrl = process.env.GOOGLE_GEMINI_BASE_URL || process.env.GEMINI_BASE_URL;
-  if (badBaseUrl && (badBaseUrl.includes('127.0.0.1') || badBaseUrl.includes('localhost'))) {
-    delete process.env.GOOGLE_GEMINI_BASE_URL;
-    delete process.env.GEMINI_BASE_URL;
-  }
 }
 
 function evaluateArithmetic(expr: string): number | null {
@@ -76,8 +66,6 @@ function searchDocuments(query: string, chunks?: DocumentChunkContext[]): Array<
 }
 
 export async function processChatRequest(payload: ChatRequestPayload) {
-  sanitizeEnvironment();
-
   const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim();
   if (!apiKey) {
     return {
@@ -192,31 +180,59 @@ Core Operating Principles:
   ];
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
-
-    const initialResponse = await ai.models.generateContent({
-      model: modelName,
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    
+    const requestBody: any = {
       contents,
-      config: {
-        systemInstruction,
+      systemInstruction: {
+        parts: [{ text: systemInstruction }]
+      },
+      generationConfig: {
         temperature: 0.6,
-        maxOutputTokens: 2048,
-        tools: (payload.documentChunks && payload.documentChunks.length > 0) ? tools : [tools[0]]
+        maxOutputTokens: 2048
       }
+    };
+
+    if (payload.documentChunks && payload.documentChunks.length > 0) {
+      requestBody.tools = tools;
+    }
+
+    const response = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
     });
 
-    const executedTools: Array<{ name: string; args: any; result: any }> = [];
-    const citations: string[] = [];
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      const msg = errData.error?.message || `HTTP ${response.status} from Gemini API`;
+      return {
+        error: {
+          message: `Google Gemini error: ${msg}`,
+          code: 'GEMINI_ERROR',
+          status: response.status,
+          details: errData.error
+        }
+      };
+    }
 
-    if (initialResponse.functionCalls && initialResponse.functionCalls.length > 0) {
+    const data = await response.json();
+    const candidate = data.candidates?.[0]?.content;
+    const parts = candidate?.parts || [];
+
+    const functionCalls = parts.filter((p: any) => Boolean(p.functionCall)).map((p: any) => p.functionCall);
+
+    if (functionCalls.length > 0) {
+      const executedTools: Array<{ name: string; args: any; result: any }> = [];
+      const citations: string[] = [];
       const toolParts: any[] = [];
 
-      for (const call of initialResponse.functionCalls) {
+      for (const call of functionCalls) {
         if (call.name === 'search_study_materials') {
-          const q = (call.args as any)?.query || userMessage;
+          const q = call.args?.query || userMessage;
           const searchResults = searchDocuments(q, payload.documentChunks);
           executedTools.push({ name: 'search_study_materials', args: call.args, result: searchResults });
-          
+
           if (searchResults.length > 0) {
             searchResults.forEach(r => citations.push(`[Source: ${r.source}]`));
           }
@@ -231,7 +247,7 @@ Core Operating Principles:
             }
           });
         } else if (call.name === 'calculate_math') {
-          const expr = (call.args as any)?.expression || '';
+          const expr = call.args?.expression || '';
           const resultVal = evaluateArithmetic(expr);
           executedTools.push({ name: 'calculate_math', args: call.args, result: resultVal });
 
@@ -249,7 +265,7 @@ Core Operating Principles:
 
       contents.push({
         role: 'model',
-        parts: initialResponse.functionCalls.map(fc => ({ functionCall: fc }))
+        parts: functionCalls.map((fc: any) => ({ functionCall: fc }))
       });
 
       contents.push({
@@ -257,26 +273,34 @@ Core Operating Principles:
         parts: toolParts
       });
 
-      const finalResponse = await ai.models.generateContent({
-        model: modelName,
-        contents,
-        config: {
-          systemInstruction,
-          temperature: 0.6,
-          maxOutputTokens: 2048
-        }
+      const secondResponse = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents,
+          systemInstruction: {
+            parts: [{ text: systemInstruction }]
+          },
+          generationConfig: {
+            temperature: 0.6,
+            maxOutputTokens: 2048
+          }
+        })
       });
 
-      const finalText = finalResponse.text || 'I have processed your request.';
-      return {
-        text: finalText,
-        model: modelName,
-        toolCallsExecuted: executedTools.length > 0 ? executedTools : undefined,
-        citations: citations.length > 0 ? Array.from(new Set(citations)) : undefined
-      };
+      if (secondResponse.ok) {
+        const secondData = await secondResponse.json();
+        const secondText = secondData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        return {
+          text: secondText,
+          model: modelName,
+          toolCallsExecuted: executedTools.length > 0 ? executedTools : undefined,
+          citations: citations.length > 0 ? Array.from(new Set(citations)) : undefined
+        };
+      }
     }
 
-    const outputText = initialResponse.text || '';
+    const outputText = parts.find((p: any) => typeof p.text === 'string')?.text || '';
     if (!outputText) {
       return {
         error: {
@@ -293,15 +317,11 @@ Core Operating Principles:
     };
 
   } catch (error: any) {
-    const errorMsg = error?.message || 'Gemini API execution error';
-    const errorStatus = error?.status || (errorMsg.includes('API key') ? 401 : 500);
-
     return {
       error: {
-        message: `Google Gemini error: ${errorMsg}`,
-        code: 'GEMINI_ERROR',
-        status: typeof errorStatus === 'number' ? errorStatus : 500,
-        details: error?.details || undefined
+        message: `Google Gemini error: ${error?.message || 'Network error'}`,
+        code: 'NETWORK_ERROR',
+        status: 500
       }
     };
   }

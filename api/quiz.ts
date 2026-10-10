@@ -1,5 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
-
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -24,7 +22,13 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch { body = {}; }
+    } else if (!body) {
+      body = {};
+    }
+
     const { subject, topic, documentChunks, count = 4 } = body;
 
     const docText = (documentChunks || []).map((c: any) => c.content).slice(0, 3).join('\n') || '';
@@ -45,18 +49,32 @@ Output ONLY a JSON array of ${count} items with this exact schema:
   }
 ]`;
 
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: {
-        responseMimeType: 'application/json',
-        temperature: 0.5,
-        maxOutputTokens: 2048
-      }
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const response = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.5,
+          maxOutputTokens: 2048
+        }
+      })
     });
 
-    const jsonText = response.text || '[]';
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      return res.status(response.status).json({
+        error: {
+          message: errData.error?.message || 'Gemini quiz generation API error',
+          code: 'QUIZ_ERROR'
+        }
+      });
+    }
+
+    const data = await response.json();
+    const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
     const parsed = JSON.parse(jsonText);
 
     return res.status(200).json(parsed);
