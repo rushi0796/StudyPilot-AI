@@ -1,0 +1,386 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { 
+  StudentProfile, 
+  Subject, 
+  QuestionItem, 
+  RevisionTask, 
+  Language, 
+  TopicStatus,
+  QuestionMarks
+} from '../types';
+import { 
+  INITIAL_STUDENT_PROFILE, 
+  SUBJECTS_DATA, 
+  QUESTION_BANK_DATA, 
+  INITIAL_REVISION_TASKS 
+} from '../data/mockData';
+
+export type ActiveView = 
+  | 'dashboard' 
+  | 'assistant' 
+  | 'subjects' 
+  | 'syllabus' 
+  | 'questions' 
+  | 'practice' 
+  | 'evaluator' 
+  | 'planner' 
+  | 'progress' 
+  | 'settings';
+
+interface AppContextType {
+  activeView: ActiveView;
+  setActiveView: (view: ActiveView) => void;
+  studentProfile: StudentProfile;
+  updateStudentProfile: (updates: Partial<StudentProfile>) => void;
+  subjects: Subject[];
+  activeSubject: Subject;
+  setActiveSubjectId: (id: string) => void;
+  updateTopicStatus: (subjectId: string, unitId: string, topicId: string, status: TopicStatus) => void;
+  questionBank: QuestionItem[];
+  toggleBookmarkQuestion: (questionId: string) => void;
+  revisionTasks: RevisionTask[];
+  toggleRevisionTask: (taskId: string) => void;
+  addRevisionTask: (task: Omit<RevisionTask, 'id' | 'completed'>) => void;
+  deleteRevisionTask: (taskId: string) => void;
+  selectedQuestionForEvaluation?: QuestionItem;
+  setSelectedQuestionForEvaluation: (q?: QuestionItem) => void;
+  globalSearchOpen: boolean;
+  setGlobalSearchOpen: (open: boolean) => void;
+  teamModalOpen: boolean;
+  setTeamModalOpen: (open: boolean) => void;
+  onboardingOpen: boolean;
+  setOnboardingOpen: (open: boolean) => void;
+  theme: 'dark' | 'light';
+  setTheme: (theme: 'dark' | 'light') => void;
+  toggleTheme: () => void;
+  unreadNotificationsCount: number;
+  notifications: Array<{ id: string; title: string; message: string; time: string; type: 'alert' | 'success' | 'info' }>;
+  dismissNotification: (id: string) => void;
+  // Speech synthesize helper
+  speakText: (text: string, lang?: Language) => void;
+  stopSpeech: () => void;
+  pauseSpeech: () => void;
+  resumeSpeech: () => void;
+  isSpeaking: boolean;
+  isSpeechPaused: boolean;
+}
+
+const AppContext = createContext<AppContextType | undefined>(undefined);
+
+export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [activeView, setActiveView] = useState<ActiveView>('dashboard');
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [teamModalOpen, setTeamModalOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  
+  // Student Profile state
+  const [studentProfile, setStudentProfile] = useState<StudentProfile>(() => {
+    const saved = localStorage.getItem('studypilot_student_profile');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+    }
+    return INITIAL_STUDENT_PROFILE;
+  });
+
+  // Subjects state
+  const [subjects, setSubjects] = useState<Subject[]>(() => {
+    const saved = localStorage.getItem('studypilot_subjects');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+    }
+    return SUBJECTS_DATA;
+  });
+
+  const [activeSubjectId, setActiveSubjectId] = useState<string>('cs201');
+  const activeSubject = subjects.find(s => s.id === activeSubjectId) || subjects[0];
+
+  // Question bank state
+  const [questionBank, setQuestionBank] = useState<QuestionItem[]>(() => {
+    const saved = localStorage.getItem('studypilot_questions');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+    }
+    return QUESTION_BANK_DATA;
+  });
+
+  // Revision tasks state
+  const [revisionTasks, setRevisionTasks] = useState<RevisionTask[]>(() => {
+    const saved = localStorage.getItem('studypilot_revisions');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+    }
+    return INITIAL_REVISION_TASKS;
+  });
+
+  // Active question sent to Answer Evaluator
+  const [selectedQuestionForEvaluation, setSelectedQuestionForEvaluation] = useState<QuestionItem | undefined>(undefined);
+
+  // Notifications
+  const [notifications, setNotifications] = useState([
+    {
+      id: 'n1',
+      title: 'Upcoming Assessment',
+      message: 'CS201: Database Management Systems Unit 3 practice quiz scheduled.',
+      time: '10 mins ago',
+      type: 'alert' as const
+    },
+    {
+      id: 'n2',
+      title: 'Weak Concept Flagged',
+      message: 'AI flagged BCNF Dependency Preservation for revision.',
+      time: '1 hour ago',
+      type: 'info' as const
+    },
+    {
+      id: 'n3',
+      title: 'Study Streak Active',
+      message: '4-day continuous study streak maintained! Keep it up for SGU Semester III exams.',
+      time: 'Yesterday',
+      type: 'success' as const
+    }
+  ]);
+
+  // Speech Synthesis state
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isSpeechPaused, setIsSpeechPaused] = useState(false);
+
+  // Sync to local storage
+  useEffect(() => {
+    localStorage.setItem('studypilot_student_profile', JSON.stringify(studentProfile));
+  }, [studentProfile]);
+
+  useEffect(() => {
+    localStorage.setItem('studypilot_subjects', JSON.stringify(subjects));
+  }, [subjects]);
+
+  useEffect(() => {
+    localStorage.setItem('studypilot_questions', JSON.stringify(questionBank));
+  }, [questionBank]);
+
+  useEffect(() => {
+    localStorage.setItem('studypilot_revisions', JSON.stringify(revisionTasks));
+  }, [revisionTasks]);
+
+  // Handle global shortcut Ctrl+K / Cmd+K
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setGlobalSearchOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Update student profile
+  const updateStudentProfile = (updates: Partial<StudentProfile>) => {
+    setStudentProfile(prev => ({ ...prev, ...updates }));
+  };
+
+  // Update Topic Status and recalculate subject progress
+  const updateTopicStatus = (subjectId: string, unitId: string, topicId: string, newStatus: TopicStatus) => {
+    setSubjects(prevSubjects => {
+      return prevSubjects.map(sub => {
+        if (sub.id !== subjectId) return sub;
+        
+        const updatedUnits = sub.units.map(unit => {
+          if (unit.id !== unitId) return unit;
+          const updatedTopics = unit.topics.map(top => {
+            if (top.id === topicId) {
+              return { ...top, status: newStatus };
+            }
+            return top;
+          });
+          return { ...unit, topics: updatedTopics };
+        });
+
+        // Calculate progress
+        let total = 0;
+        let completed = 0;
+        updatedUnits.forEach(u => {
+          u.topics.forEach(t => {
+            total++;
+            if (t.status === 'completed') completed += 1;
+            else if (t.status === 'in-progress') completed += 0.5;
+          });
+        });
+
+        return { ...sub, units: updatedUnits };
+      });
+    });
+  };
+
+  // Toggle Bookmark
+  const toggleBookmarkQuestion = (questionId: string) => {
+    setQuestionBank(prev => prev.map(q => {
+      if (q.id === questionId) {
+        return { ...q, isBookmarked: !q.isBookmarked };
+      }
+      return q;
+    }));
+  };
+
+  // Toggle revision task
+  const toggleRevisionTask = (taskId: string) => {
+    setRevisionTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        const nextCompleted = !t.completed;
+        return {
+          ...t,
+          completed: nextCompleted,
+          dateCompleted: nextCompleted ? 'Just now' : undefined
+        };
+      }
+      return t;
+    }));
+  };
+
+  const addRevisionTask = (task: Omit<RevisionTask, 'id' | 'completed'>) => {
+    const newTask: RevisionTask = {
+      ...task,
+      id: `rev_${Date.now()}`,
+      completed: false
+    };
+    setRevisionTasks(prev => [newTask, ...prev]);
+  };
+
+  const deleteRevisionTask = (taskId: string) => {
+    setRevisionTasks(prev => prev.filter(t => t.id !== taskId));
+  };
+
+  const dismissNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const toggleTheme = () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    if (nextTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
+  // Speech functions using Web Speech API
+  const stopSpeech = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      setIsSpeechPaused(false);
+    }
+  };
+
+  const pauseSpeech = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.pause();
+      setIsSpeechPaused(true);
+    }
+  };
+
+  const resumeSpeech = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.resume();
+      setIsSpeechPaused(false);
+    }
+  };
+
+  const speakText = (text: string, lang: Language = studentProfile.preferredLanguage) => {
+    if (!('speechSynthesis' in window)) {
+      alert("Text-to-speech is not supported in this browser environment.");
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    // Clean markdown symbols for cleaner speech
+    const cleanText = text
+      .replace(/[#*`_~$\\]/g, ' ')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .trim();
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    
+    // Set voice language
+    if (lang === 'hi') {
+      utterance.lang = 'hi-IN';
+    } else if (lang === 'te') {
+      utterance.lang = 'te-IN';
+    } else {
+      utterance.lang = 'en-IN';
+    }
+
+    utterance.rate = 0.95;
+    utterance.pitch = 1.0;
+
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+      setIsSpeechPaused(false);
+    };
+
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      setIsSpeechPaused(false);
+    };
+
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      setIsSpeechPaused(false);
+    };
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  return (
+    <AppContext.Provider
+      value={{
+        activeView,
+        setActiveView,
+        studentProfile,
+        updateStudentProfile,
+        subjects,
+        activeSubject,
+        setActiveSubjectId,
+        updateTopicStatus,
+        questionBank,
+        toggleBookmarkQuestion,
+        revisionTasks,
+        toggleRevisionTask,
+        addRevisionTask,
+        deleteRevisionTask,
+        selectedQuestionForEvaluation,
+        setSelectedQuestionForEvaluation,
+        globalSearchOpen,
+        setGlobalSearchOpen,
+        teamModalOpen,
+        setTeamModalOpen,
+        onboardingOpen,
+        setOnboardingOpen,
+        theme,
+        setTheme,
+        toggleTheme,
+        unreadNotificationsCount: notifications.length,
+        notifications,
+        dismissNotification,
+        speakText,
+        stopSpeech,
+        pauseSpeech,
+        resumeSpeech,
+        isSpeaking,
+        isSpeechPaused
+      }}
+    >
+      {children}
+    </AppContext.Provider>
+  );
+};
+
+export const useApp = () => {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error('useApp must be used within an AppProvider');
+  }
+  return context;
+};
