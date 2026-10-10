@@ -4,14 +4,12 @@ import {
   Search, 
   Bell, 
   Globe, 
-  Moon, 
-  Sun, 
   User, 
   ShieldCheck, 
-  ExternalLink,
-  ChevronDown,
-  X,
-  Volume2
+  ChevronDown, 
+  X, 
+  Volume2,
+  FolderOpen
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Language } from '../../types';
@@ -25,13 +23,12 @@ export const Navbar: React.FC = () => {
     setGlobalSearchOpen,
     setTeamModalOpen,
     setOnboardingOpen,
-    theme,
-    toggleTheme,
     notifications,
     unreadNotificationsCount,
     dismissNotification,
     isSpeaking,
-    stopSpeech
+    stopSpeech,
+    uploadedDocuments
   } = useApp();
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -68,7 +65,7 @@ export const Navbar: React.FC = () => {
   const currentLangObj = languages.find(l => l.code === studentProfile.preferredLanguage) || languages[0];
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-[#0B1020]/90 backdrop-blur-md border-b border-navy-700/60 px-4 lg:px-6 py-2.5 transition-colors duration-200">
+    <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md border-b border-[#E5E0D5] px-4 lg:px-6 py-2.5 transition-colors duration-200 shadow-subtle">
       <div className="flex items-center justify-between gap-4">
         
         {/* Brand Logo & Academic Identity */}
@@ -77,19 +74,19 @@ export const Navbar: React.FC = () => {
             onClick={() => setActiveView('dashboard')}
             className="flex items-center gap-2.5 group text-left focus:outline-none"
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-electric-600 via-electric-500 to-violet-500 flex items-center justify-center shadow-glow group-hover:scale-105 transition-transform duration-200">
-              <Sparkles className="w-5 h-5 text-white animate-pulse" />
+            <div className="w-10 h-10 rounded-xl bg-forest-500 text-white flex items-center justify-center shadow-card group-hover:bg-forest-600 transition-all duration-200">
+              <Sparkles className="w-5 h-5 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-blue-100 to-electric-400 bg-clip-text text-transparent">
+                <span className="font-extrabold text-lg tracking-tight text-charcoal-900 group-hover:text-forest-600 transition-colors">
                   StudyPilot AI
                 </span>
-                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-electric-500/15 text-electric-300 border border-electric-500/30">
+                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-forest-50 text-forest-700 border border-forest-200">
                   Team Codex
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 hidden sm:block font-medium">
+              <p className="text-[11px] text-charcoal-400 hidden sm:block font-medium">
                 Sanjay Ghodawat University • AI Dept
               </p>
             </div>
@@ -100,40 +97,55 @@ export const Navbar: React.FC = () => {
         <div className="flex-1 max-w-md hidden md:block">
           <button
             onClick={() => setGlobalSearchOpen(true)}
-            className="w-full flex items-center justify-between px-3.5 py-1.5 rounded-xl bg-navy-900/80 hover:bg-navy-800/90 text-slate-400 hover:text-slate-200 border border-navy-700/70 hover:border-electric-500/40 text-xs transition-all shadow-inner group"
+            className="w-full flex items-center justify-between px-3.5 py-1.5 rounded-xl bg-academic-bg hover:bg-sage-100 text-charcoal-400 hover:text-charcoal-700 border border-[#E5E0D5] text-xs transition-all shadow-subtle group"
           >
             <div className="flex items-center gap-2.5">
-              <Search className="w-4 h-4 text-electric-400 group-hover:text-electric-300 transition-colors" />
+              <Search className="w-4 h-4 text-forest-600 group-hover:text-forest-700 transition-colors" />
               <span>Search subjects, syllabus units, question bank...</span>
             </div>
-            <kbd className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono font-medium text-slate-400 bg-navy-950 rounded border border-navy-700">
+            <kbd className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono font-medium text-charcoal-400 bg-white rounded border border-[#E5E0D5]">
               Ctrl K
             </kbd>
           </button>
         </div>
 
-        {/* Right Action Tools: Audio Status, Language, Notifications, Theme, Profile */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        {/* Right Action Tools: Audio Status, Language, Notifications, Files, Profile */}
+        <div className="flex items-center gap-2 sm:gap-2.5">
           
           {/* Active Audio Speech Pill */}
           {isSpeaking && (
             <button
               onClick={stopSpeech}
-              className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/40 text-xs animate-pulse hover:bg-violet-500/30"
+              className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-forest-100 text-forest-700 border border-forest-300 text-xs animate-pulse hover:bg-forest-200"
               title="Speech is playing. Click to stop."
             >
-              <Volume2 className="w-3.5 h-3.5 text-violet-400" />
-              <span className="hidden sm:inline font-medium">Speaking...</span>
-              <X className="w-3 h-3 hover:text-white" />
+              <Volume2 className="w-3.5 h-3.5 text-forest-600" />
+              <span className="hidden sm:inline font-semibold">Speaking...</span>
+              <X className="w-3 h-3 hover:text-charcoal-900" />
             </button>
           )}
+
+          {/* Quick Files Hub Shortcut */}
+          <button
+            onClick={() => setActiveView('files')}
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-charcoal-700 bg-academic-bg hover:bg-sage-100 border border-[#E5E0D5] transition-colors"
+            title="My Files & Study Materials"
+          >
+            <FolderOpen className="w-3.5 h-3.5 text-forest-600" />
+            <span className="hidden md:inline">Materials</span>
+            {uploadedDocuments.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-forest-500 text-white font-bold">
+                {uploadedDocuments.length}
+              </span>
+            )}
+          </button>
 
           {/* Academic Showcase Pill */}
           <button
             onClick={() => setTeamModalOpen(true)}
-            className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 bg-navy-800/70 hover:bg-navy-700 hover:text-white border border-navy-700 hover:border-slate-600 transition-colors"
+            className="hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-charcoal-700 bg-academic-bg hover:bg-sage-100 border border-[#E5E0D5] transition-colors"
           >
-            <ShieldCheck className="w-3.5 h-3.5 text-electric-400" />
+            <ShieldCheck className="w-3.5 h-3.5 text-forest-600" />
             <span>Academic Info</span>
           </button>
 
@@ -141,17 +153,17 @@ export const Navbar: React.FC = () => {
           <div className="relative" ref={langRef}>
             <button
               onClick={() => setLangDropdownOpen(!langDropdownOpen)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-300 bg-navy-800/60 hover:bg-navy-700 border border-navy-700/70 hover:border-electric-500/40 transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-charcoal-700 bg-academic-bg hover:bg-sage-100 border border-[#E5E0D5] transition-colors"
               title="Change Explanation Language"
             >
-              <Globe className="w-3.5 h-3.5 text-electric-400" />
-              <span className="font-semibold uppercase">{studentProfile.preferredLanguage}</span>
-              <ChevronDown className="w-3 h-3 text-slate-400" />
+              <Globe className="w-3.5 h-3.5 text-forest-600" />
+              <span className="uppercase">{studentProfile.preferredLanguage}</span>
+              <ChevronDown className="w-3 h-3 text-charcoal-400" />
             </button>
 
             {langDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-48 rounded-xl bg-navy-900 border border-navy-700/80 shadow-2xl p-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                <div className="px-2 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider border-b border-navy-800 mb-1">
+              <div className="absolute right-0 mt-2 w-48 rounded-2xl bg-white border border-[#E5E0D5] shadow-elevated p-1.5 z-50 animate-in fade-in duration-150">
+                <div className="px-2 py-1 text-[11px] font-bold text-charcoal-400 uppercase tracking-wider border-b border-[#E5E0D5] mb-1">
                   Explanation Language
                 </div>
                 {languages.map((l) => (
@@ -163,12 +175,12 @@ export const Navbar: React.FC = () => {
                     }}
                     className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left ${
                       studentProfile.preferredLanguage === l.code 
-                        ? 'bg-electric-500/20 text-electric-300 font-medium border border-electric-500/30' 
-                        : 'text-slate-300 hover:bg-navy-800 hover:text-white'
+                        ? 'bg-sage-200 text-forest-800 font-bold' 
+                        : 'text-charcoal-700 hover:bg-sage-50 hover:text-charcoal-900'
                     }`}
                   >
                     <span>{l.label}</span>
-                    <span className="text-[11px] text-slate-400">{l.native}</span>
+                    <span className="text-[11px] text-charcoal-400">{l.native}</span>
                   </button>
                 ))}
               </div>
@@ -179,25 +191,25 @@ export const Navbar: React.FC = () => {
           <div className="relative" ref={notifRef}>
             <button
               onClick={() => setNotificationsOpen(!notificationsOpen)}
-              className="relative p-2 rounded-lg text-slate-300 hover:text-white bg-navy-800/60 hover:bg-navy-700 border border-navy-700/70 hover:border-electric-500/40 transition-colors"
+              className="relative p-2 rounded-lg text-charcoal-700 hover:text-charcoal-900 bg-academic-bg hover:bg-sage-100 border border-[#E5E0D5] transition-colors"
               title="Study Notifications"
             >
-              <Bell className="w-4 h-4" />
+              <Bell className="w-4 h-4 text-charcoal-600" />
               {unreadNotificationsCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-electric-500 text-[10px] font-bold text-white shadow">
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-forest-600 text-[10px] font-bold text-white shadow-subtle">
                   {unreadNotificationsCount}
                 </span>
               )}
             </button>
 
             {notificationsOpen && (
-              <div className="absolute right-0 mt-2 w-80 rounded-xl bg-navy-900 border border-navy-700/80 shadow-2xl p-3 z-50">
-                <div className="flex items-center justify-between pb-2 border-b border-navy-800 mb-2">
-                  <span className="font-semibold text-xs text-slate-200">Study Notifications</span>
-                  <span className="text-[10px] text-slate-400">{notifications.length} alerts</span>
+              <div className="absolute right-0 mt-2 w-80 rounded-2xl bg-white border border-[#E5E0D5] shadow-elevated p-3.5 z-50">
+                <div className="flex items-center justify-between pb-2 border-b border-[#E5E0D5] mb-2">
+                  <span className="font-bold text-xs text-charcoal-900">Study Notifications</span>
+                  <span className="text-[10px] text-charcoal-400">{notifications.length} alerts</span>
                 </div>
                 {notifications.length === 0 ? (
-                  <div className="text-center py-6 text-xs text-slate-400">
+                  <div className="text-center py-6 text-xs text-charcoal-400">
                     No active study notifications.
                   </div>
                 ) : (
@@ -205,26 +217,26 @@ export const Navbar: React.FC = () => {
                     {notifications.map(n => (
                       <div 
                         key={n.id}
-                        className="p-2.5 rounded-lg bg-navy-950/60 border border-navy-800 hover:border-navy-700 transition-colors relative group"
+                        className="p-2.5 rounded-xl bg-academic-bg border border-[#E5E0D5] hover:border-forest-300 transition-colors relative group"
                       >
                         <div className="flex items-start justify-between gap-1">
-                          <span className={`text-xs font-semibold ${
-                            n.type === 'alert' ? 'text-amber-400' :
-                            n.type === 'success' ? 'text-emerald-400' : 'text-electric-400'
+                          <span className={`text-xs font-bold ${
+                            n.type === 'alert' ? 'text-amber-700' :
+                            n.type === 'success' ? 'text-forest-700' : 'text-forest-600'
                           }`}>
                             {n.title}
                           </span>
                           <button 
                             onClick={() => dismissNotification(n.id)}
-                            className="text-slate-500 hover:text-slate-300 p-0.5 rounded"
+                            className="text-charcoal-400 hover:text-charcoal-700 p-0.5 rounded"
                           >
                             <X className="w-3 h-3" />
                           </button>
                         </div>
-                        <p className="text-[11px] text-slate-300 mt-1 leading-snug">
+                        <p className="text-[11px] text-charcoal-700 mt-1 leading-snug">
                           {n.message}
                         </p>
-                        <span className="text-[10px] text-slate-500 mt-1 block">
+                        <span className="text-[10px] text-charcoal-400 mt-1 block">
                           {n.time}
                         </span>
                       </div>
@@ -239,28 +251,28 @@ export const Navbar: React.FC = () => {
           <div className="relative" ref={profileRef}>
             <button
               onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-              className="flex items-center gap-2 p-1 pl-1.5 pr-2 rounded-xl bg-navy-800/80 hover:bg-navy-700 border border-navy-700/80 hover:border-electric-500/40 transition-colors group"
+              className="flex items-center gap-2 p-1 pl-1.5 pr-2 rounded-xl bg-academic-bg hover:bg-sage-100 border border-[#E5E0D5] transition-colors group"
             >
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-electric-600 to-violet-600 flex items-center justify-center text-white text-xs font-bold shadow">
+              <div className="w-7 h-7 rounded-lg bg-forest-500 text-white flex items-center justify-center text-xs font-bold shadow-subtle">
                 AR
               </div>
               <div className="text-left hidden lg:block">
-                <p className="text-xs font-semibold text-slate-200 leading-tight">
+                <p className="text-xs font-bold text-charcoal-900 leading-tight">
                   {studentProfile.name.split(' ')[0]} {studentProfile.name.split(' ')[1]?.[0]}.
                 </p>
-                <p className="text-[10px] text-slate-400 leading-tight">
+                <p className="text-[10px] text-charcoal-400 leading-tight">
                   {studentProfile.semester} • AI
                 </p>
               </div>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200" />
+              <ChevronDown className="w-3.5 h-3.5 text-charcoal-400 group-hover:text-charcoal-700" />
             </button>
 
             {profileDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-64 rounded-xl bg-navy-900 border border-navy-700/80 shadow-2xl p-2 z-50">
-                <div className="p-2 border-b border-navy-800">
-                  <p className="text-xs font-bold text-slate-100">{studentProfile.name}</p>
-                  <p className="text-[11px] text-slate-400">{studentProfile.university}</p>
-                  <p className="text-[10px] text-electric-400 mt-0.5 font-medium">
+              <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white border border-[#E5E0D5] shadow-elevated p-2 z-50">
+                <div className="p-2.5 border-b border-[#E5E0D5]">
+                  <p className="text-xs font-bold text-charcoal-900">{studentProfile.name}</p>
+                  <p className="text-[11px] text-charcoal-400">{studentProfile.university}</p>
+                  <p className="text-[10px] text-forest-700 mt-0.5 font-semibold">
                     {studentProfile.branch} ({studentProfile.year})
                   </p>
                 </div>
@@ -270,9 +282,9 @@ export const Navbar: React.FC = () => {
                       setActiveView('settings');
                       setProfileDropdownOpen(false);
                     }}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-slate-300 hover:bg-navy-800 hover:text-white"
+                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-charcoal-700 hover:bg-sage-50 hover:text-charcoal-900"
                   >
-                    <User className="w-3.5 h-3.5 text-electric-400" />
+                    <User className="w-3.5 h-3.5 text-forest-600" />
                     <span>Academic Profile & Settings</span>
                   </button>
                   <button
@@ -280,9 +292,9 @@ export const Navbar: React.FC = () => {
                       setTeamModalOpen(true);
                       setProfileDropdownOpen(false);
                     }}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-slate-300 hover:bg-navy-800 hover:text-white"
+                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-charcoal-700 hover:bg-sage-50 hover:text-charcoal-900"
                   >
-                    <ShieldCheck className="w-3.5 h-3.5 text-violet-400" />
+                    <ShieldCheck className="w-3.5 h-3.5 text-forest-600" />
                     <span>About Team Codex (SGU Project)</span>
                   </button>
                   <button
@@ -290,9 +302,9 @@ export const Navbar: React.FC = () => {
                       setOnboardingOpen(true);
                       setProfileDropdownOpen(false);
                     }}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-slate-300 hover:bg-navy-800 hover:text-white"
+                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-charcoal-700 hover:bg-sage-50 hover:text-charcoal-900"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <Sparkles className="w-3.5 h-3.5 text-gold-500" />
                     <span>Restart Onboarding Tour</span>
                   </button>
                 </div>

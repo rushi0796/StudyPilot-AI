@@ -5,7 +5,6 @@ import {
   ArrowRight, 
   ArrowLeft, 
   Building2, 
-  GraduationCap, 
   BookOpen, 
   Languages, 
   Sliders, 
@@ -81,16 +80,16 @@ export const OnboardingModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl bg-navy-900 border border-navy-700 rounded-3xl shadow-2xl p-6 lg:p-8 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="relative w-full max-w-2xl bg-white border border-[#E5E0D5] rounded-3xl shadow-elevated p-6 lg:p-8 overflow-hidden">
         
         {/* Step Indicator Top Bar */}
-        <div className="flex items-center justify-between pb-5 border-b border-navy-800">
+        <div className="flex items-center justify-between pb-5 border-b border-[#E5E0D5]">
           <div className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-electric-500/20 text-electric-400 font-bold text-xs">
+            <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-forest-100 text-forest-700 font-bold text-xs">
               {step}/6
             </span>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-charcoal-400">
               {step === 1 && "Welcome"}
               {step === 2 && "Academic Details"}
               {step === 3 && "Course Subjects"}
@@ -105,7 +104,7 @@ export const OnboardingModal: React.FC = () => {
               <div 
                 key={s} 
                 className={`h-1.5 rounded-full transition-all duration-200 ${
-                  s === step ? 'w-6 bg-electric-500' : s < step ? 'w-3 bg-emerald-500' : 'w-3 bg-navy-800'
+                  s === step ? 'w-6 bg-forest-500' : s < step ? 'w-3 bg-forest-300' : 'w-3 bg-academic-bg'
                 }`}
               />
             ))}
@@ -113,7 +112,7 @@ export const OnboardingModal: React.FC = () => {
 
           <button
             onClick={() => setOnboardingOpen(false)}
-            className="text-slate-500 hover:text-slate-300 p-1"
+            className="text-charcoal-400 hover:text-charcoal-700 p-1"
           >
             <X className="w-4 h-4" />
           </button>
@@ -125,33 +124,33 @@ export const OnboardingModal: React.FC = () => {
           {/* STEP 1: WELCOME */}
           {step === 1 && (
             <div className="text-center space-y-4 animate-in fade-in slide-in-from-right-4 duration-200">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-electric-600 via-electric-500 to-violet-500 mx-auto flex items-center justify-center shadow-glow">
-                <Sparkles className="w-8 h-8 text-white animate-spin-slow" />
+              <div className="w-16 h-16 rounded-2xl bg-forest-500 text-white mx-auto flex items-center justify-center shadow-card">
+                <Sparkles className="w-8 h-8" />
               </div>
               <div>
-                <h2 className="text-2xl font-extrabold text-white">
+                <h2 className="text-2xl font-black text-charcoal-900">
                   Welcome to StudyPilot AI
                 </h2>
-                <p className="text-sm text-electric-400 font-medium mt-1">
+                <p className="text-sm text-forest-700 font-semibold mt-1">
                   AI-Powered Personalized Study Assistant
                 </p>
               </div>
-              <p className="text-xs text-slate-300 max-w-lg mx-auto leading-relaxed">
-                An academic innovation by <strong className="text-white">Team Codex</strong>, 2nd-Year Artificial Intelligence students at <strong className="text-white">Sanjay Ghodawat University</strong>.
-                Designed to help college students conquer complex engineering concepts, master university syllabi, and practice marks-wise exam questions with targeted feedback.
+              <p className="text-xs text-charcoal-700 max-w-lg mx-auto leading-relaxed">
+                An academic capstone innovation by <strong className="text-charcoal-900">Team Codex</strong>, 2nd-Year Artificial Intelligence students at <strong className="text-charcoal-900">Sanjay Ghodawat University</strong>.
+                Designed to help college students understand complex concepts, study university syllabi, and practice examination questions.
               </p>
-              <div className="p-3 bg-navy-950/70 border border-navy-800 rounded-xl max-w-md mx-auto text-left text-xs space-y-1.5">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <div className="p-4 bg-academic-bg border border-[#E5E0D5] rounded-2xl max-w-md mx-auto text-left text-xs space-y-2">
+                <div className="flex items-center gap-2 text-charcoal-700">
+                  <CheckCircle2 className="w-4 h-4 text-forest-600 flex-shrink-0" />
                   <span>Syllabus-aligned concepts and university marking rubrics</span>
                 </div>
-                <div className="flex items-center gap-2 text-slate-300">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                  <span>Interactive AI tutor with progressive "Teach Until I Understand"</span>
+                <div className="flex items-center gap-2 text-charcoal-700">
+                  <CheckCircle2 className="w-4 h-4 text-forest-600 flex-shrink-0" />
+                  <span>Upload syllabus notes & PDFs for grounded AI doubt-solving</span>
                 </div>
-                <div className="flex items-center gap-2 text-slate-300">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                  <span>Multilingual support in English, Hindi, and Telugu with voice TTS</span>
+                <div className="flex items-center gap-2 text-charcoal-700">
+                  <CheckCircle2 className="w-4 h-4 text-forest-600 flex-shrink-0" />
+                  <span>Multilingual support in English, Hindi, and Telugu with TTS audio</span>
                 </div>
               </div>
             </div>
@@ -161,31 +160,31 @@ export const OnboardingModal: React.FC = () => {
           {step === 2 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-200">
               <div className="text-left">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-electric-400" />
+                <h3 className="text-lg font-bold text-charcoal-900 flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-forest-600" />
                   Select Academic Details
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-charcoal-400 mt-0.5">
                   Pre-configured for Sanjay Ghodawat University 2nd-Year AI curriculum.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
-                  <label className="block text-slate-400 font-medium mb-1">University</label>
+                  <label className="block text-charcoal-400 font-semibold mb-1">University</label>
                   <input
                     type="text"
                     value={university}
                     onChange={(e) => setUniversity(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-navy-700 text-white focus:border-electric-500 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-academic-bg border border-[#E5E0D5] text-charcoal-900 focus:border-forest-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-medium mb-1">Degree Course</label>
+                  <label className="block text-charcoal-400 font-semibold mb-1">Degree Course</label>
                   <select
                     value={course}
                     onChange={(e) => setCourse(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-navy-700 text-white focus:border-electric-500 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-academic-bg border border-[#E5E0D5] text-charcoal-900 focus:border-forest-500 focus:outline-none"
                   >
                     <option value="B.Tech (Four-Year Degree)">B.Tech (Four-Year Degree)</option>
                     <option value="B.Sc Artificial Intelligence">B.Sc Artificial Intelligence</option>
@@ -193,11 +192,11 @@ export const OnboardingModal: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-medium mb-1">Department / Branch</label>
+                  <label className="block text-charcoal-400 font-semibold mb-1">Department / Branch</label>
                   <select
                     value={branch}
                     onChange={(e) => setBranch(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-navy-700 text-white focus:border-electric-500 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-academic-bg border border-[#E5E0D5] text-charcoal-900 focus:border-forest-500 focus:outline-none"
                   >
                     <option value="Artificial Intelligence & Machine Learning">Artificial Intelligence & Machine Learning</option>
                     <option value="Computer Science & Engineering">Computer Science & Engineering</option>
@@ -205,11 +204,11 @@ export const OnboardingModal: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-medium mb-1">Academic Year</label>
+                  <label className="block text-charcoal-400 font-semibold mb-1">Academic Year</label>
                   <select
                     value={year}
                     onChange={(e) => setYear(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-navy-700 text-white focus:border-electric-500 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-academic-bg border border-[#E5E0D5] text-charcoal-900 focus:border-forest-500 focus:outline-none"
                   >
                     <option value="1st Year">1st Year</option>
                     <option value="2nd Year">2nd Year (Sophomore)</option>
@@ -218,11 +217,11 @@ export const OnboardingModal: React.FC = () => {
                   </select>
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="block text-slate-400 font-medium mb-1">Current Semester</label>
+                  <label className="block text-charcoal-400 font-semibold mb-1">Current Semester</label>
                   <select
                     value={semester}
                     onChange={(e) => setSemester(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-navy-700 text-white focus:border-electric-500 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-academic-bg border border-[#E5E0D5] text-charcoal-900 focus:border-forest-500 focus:outline-none"
                   >
                     <option value="Semester III">Semester III (Active SGU AI Term)</option>
                     <option value="Semester IV">Semester IV</option>
@@ -237,11 +236,11 @@ export const OnboardingModal: React.FC = () => {
           {step === 3 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-200">
               <div>
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <BookOpen className="w-5 h-5 text-electric-400" />
+                <h3 className="text-lg font-bold text-charcoal-900 flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-forest-600" />
                   Select Your Active Subjects
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-charcoal-400 mt-0.5">
                   Pick the subjects you want StudyPilot AI to organize in your dashboard.
                 </p>
               </div>
@@ -255,19 +254,19 @@ export const OnboardingModal: React.FC = () => {
                       onClick={() => toggleSubject(sub.id)}
                       className={`p-3 rounded-xl border text-left transition-all flex items-start justify-between ${
                         isSelected 
-                          ? 'bg-electric-600/15 border-electric-500 text-white' 
-                          : 'bg-navy-950/60 border-navy-800 text-slate-400 hover:border-slate-700'
+                          ? 'bg-sage-100 border-forest-500 text-charcoal-900 shadow-subtle' 
+                          : 'bg-academic-bg border-[#E5E0D5] text-charcoal-700 hover:border-forest-300'
                       }`}
                     >
                       <div>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-navy-800 text-electric-300">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-forest-100 text-forest-800">
                           {sub.code}
                         </span>
-                        <h4 className="text-xs font-semibold text-slate-200 mt-1">{sub.name}</h4>
-                        <p className="text-[10px] text-slate-400">{sub.units.length} Units • {sub.totalQuestionsCount} Qs</p>
+                        <h4 className="text-xs font-bold text-charcoal-900 mt-1">{sub.name}</h4>
+                        <p className="text-[10px] text-charcoal-400">{sub.units.length} Units • {sub.totalQuestionsCount} Qs</p>
                       </div>
                       <div className={`w-5 h-5 rounded-md flex items-center justify-center ${
-                        isSelected ? 'bg-electric-500 text-white' : 'border border-navy-700'
+                        isSelected ? 'bg-forest-500 text-white' : 'border border-[#E5E0D5]'
                       }`}>
                         {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                       </div>
@@ -282,11 +281,11 @@ export const OnboardingModal: React.FC = () => {
           {step === 4 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-200">
               <div>
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Languages className="w-5 h-5 text-electric-400" />
+                <h3 className="text-lg font-bold text-charcoal-900 flex items-center gap-2">
+                  <Languages className="w-5 h-5 text-forest-600" />
                   Choose Preferred Explanation Language
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-charcoal-400 mt-0.5">
                   StudyPilot AI adapts explanations and voice synthesis into your chosen language.
                 </p>
               </div>
@@ -302,15 +301,15 @@ export const OnboardingModal: React.FC = () => {
                     onClick={() => setSelectedLanguage(l.id)}
                     className={`p-4 rounded-2xl border text-left transition-all ${
                       selectedLanguage === l.id 
-                        ? 'bg-electric-600/20 border-electric-500 shadow-glow' 
-                        : 'bg-navy-950/60 border-navy-800 hover:border-navy-700'
+                        ? 'bg-sage-100 border-forest-500 shadow-card' 
+                        : 'bg-academic-bg border-[#E5E0D5] hover:border-forest-300'
                     }`}
                   >
-                    <div className="w-10 h-10 rounded-xl bg-navy-800 flex items-center justify-center font-bold text-sm text-electric-400 mb-3 border border-navy-700">
+                    <div className="w-10 h-10 rounded-xl bg-forest-100 flex items-center justify-center font-bold text-sm text-forest-700 mb-3 border border-forest-200">
                       {l.icon}
                     </div>
-                    <h4 className="font-bold text-sm text-white">{l.title}</h4>
-                    <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">{l.desc}</p>
+                    <h4 className="font-bold text-sm text-charcoal-900">{l.title}</h4>
+                    <p className="text-[11px] text-charcoal-400 mt-1 leading-relaxed">{l.desc}</p>
                   </button>
                 ))}
               </div>
@@ -321,11 +320,11 @@ export const OnboardingModal: React.FC = () => {
           {step === 5 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-200">
               <div>
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Sliders className="w-5 h-5 text-electric-400" />
+                <h3 className="text-lg font-bold text-charcoal-900 flex items-center gap-2">
+                  <Sliders className="w-5 h-5 text-forest-600" />
                   Select Your Learning Preferences
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-charcoal-400 mt-0.5">
                   Customize how the AI tutor formats conceptual answers for you.
                 </p>
               </div>
@@ -345,16 +344,16 @@ export const OnboardingModal: React.FC = () => {
                       onClick={() => setPreferences(prev => ({ ...prev, [key]: !prev[key] }))}
                       className={`p-3.5 rounded-xl border text-left transition-all flex items-start justify-between ${
                         active 
-                          ? 'bg-violet-600/15 border-violet-500 text-white' 
-                          : 'bg-navy-950/60 border-navy-800 text-slate-400 hover:border-navy-700'
+                          ? 'bg-sage-100 border-forest-500 text-charcoal-900' 
+                          : 'bg-academic-bg border-[#E5E0D5] text-charcoal-700 hover:border-forest-300'
                       }`}
                     >
                       <div className="pr-2">
-                        <span className="font-semibold text-slate-200 block">{item.label}</span>
-                        <span className="text-[11px] text-slate-400 mt-0.5 block">{item.desc}</span>
+                        <span className="font-bold text-charcoal-900 block">{item.label}</span>
+                        <span className="text-[11px] text-charcoal-400 mt-0.5 block">{item.desc}</span>
                       </div>
                       <div className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 ${
-                        active ? 'bg-violet-500 text-white' : 'border border-navy-700'
+                        active ? 'bg-forest-500 text-white' : 'border border-[#E5E0D5]'
                       }`}>
                         {active && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                       </div>
@@ -369,37 +368,37 @@ export const OnboardingModal: React.FC = () => {
           {step === 6 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-200">
               <div className="text-center">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-2 border border-emerald-500/30">
+                <div className="w-12 h-12 rounded-2xl bg-forest-100 text-forest-700 flex items-center justify-center mx-auto mb-2 border border-forest-200">
                   <Award className="w-6 h-6" />
                 </div>
-                <h3 className="text-xl font-bold text-white">
+                <h3 className="text-xl font-bold text-charcoal-900">
                   Your Personalized Academic Dashboard is Ready!
                 </h3>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-charcoal-400 mt-1">
                   We've configured your study environment based on your selections.
                 </p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-navy-950/80 border border-navy-800 text-xs space-y-2.5 max-w-lg mx-auto">
-                <div className="flex justify-between pb-2 border-b border-navy-850">
-                  <span className="text-slate-400">University & Program:</span>
-                  <span className="font-semibold text-white">{university} • {year} ({semester})</span>
+              <div className="p-4 rounded-2xl bg-academic-bg border border-[#E5E0D5] text-xs space-y-2.5 max-w-lg mx-auto">
+                <div className="flex justify-between pb-2 border-b border-[#E5E0D5]">
+                  <span className="text-charcoal-400">University & Program:</span>
+                  <span className="font-bold text-charcoal-900">{university} • {year} ({semester})</span>
                 </div>
-                <div className="flex justify-between pb-2 border-b border-navy-850">
-                  <span className="text-slate-400">Branch:</span>
-                  <span className="font-semibold text-electric-300">{branch}</span>
+                <div className="flex justify-between pb-2 border-b border-[#E5E0D5]">
+                  <span className="text-charcoal-400">Branch:</span>
+                  <span className="font-bold text-forest-700">{branch}</span>
                 </div>
-                <div className="flex justify-between pb-2 border-b border-navy-850">
-                  <span className="text-slate-400">Enrolled Subjects:</span>
-                  <span className="font-semibold text-white">{selectedSubjectIds.length} Subjects Active</span>
+                <div className="flex justify-between pb-2 border-b border-[#E5E0D5]">
+                  <span className="text-charcoal-400">Enrolled Subjects:</span>
+                  <span className="font-bold text-charcoal-900">{selectedSubjectIds.length} Subjects Active</span>
                 </div>
-                <div className="flex justify-between pb-2 border-b border-navy-850">
-                  <span className="text-slate-400">Explanation Language:</span>
-                  <span className="font-semibold text-violet-300 uppercase">{selectedLanguage === 'en' ? 'English' : selectedLanguage === 'hi' ? 'Hindi' : 'Telugu'}</span>
+                <div className="flex justify-between pb-2 border-b border-[#E5E0D5]">
+                  <span className="text-charcoal-400">Explanation Language:</span>
+                  <span className="font-bold text-forest-800 uppercase">{selectedLanguage === 'en' ? 'English' : selectedLanguage === 'hi' ? 'Hindi' : 'Telugu'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Learning Mode:</span>
-                  <span className="font-semibold text-emerald-300">Simple + Step-by-Step + Audio</span>
+                  <span className="text-charcoal-400">Learning Mode:</span>
+                  <span className="font-bold text-forest-700">Simple + Step-by-Step + Audio</span>
                 </div>
               </div>
             </div>
@@ -408,11 +407,11 @@ export const OnboardingModal: React.FC = () => {
         </div>
 
         {/* Footer Navigation Buttons */}
-        <div className="pt-4 border-t border-navy-800 flex items-center justify-between">
+        <div className="pt-4 border-t border-[#E5E0D5] flex items-center justify-between">
           {step > 1 ? (
             <button
               onClick={() => setStep(step - 1)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-navy-800 hover:bg-navy-700 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-charcoal-700 hover:text-charcoal-900 bg-academic-bg hover:bg-sage-100 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Back</span>
@@ -424,7 +423,7 @@ export const OnboardingModal: React.FC = () => {
           {step < 6 ? (
             <button
               onClick={() => setStep(step + 1)}
-              className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-semibold text-white bg-electric-600 hover:bg-electric-500 shadow-glow transition-all"
+              className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-forest-500 hover:bg-forest-600 shadow-card transition-all"
             >
               <span>Continue</span>
               <ArrowRight className="w-4 h-4" />
@@ -432,7 +431,7 @@ export const OnboardingModal: React.FC = () => {
           ) : (
             <button
               onClick={handleFinishOnboarding}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-electric-600 to-violet-600 hover:from-electric-500 hover:to-violet-500 shadow-glow transition-all"
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-forest-500 hover:bg-forest-600 shadow-card transition-all"
             >
               <Sparkles className="w-4 h-4" />
               <span>Launch Dashboard</span>

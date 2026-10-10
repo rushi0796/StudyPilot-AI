@@ -21,6 +21,8 @@ export interface StudentProfile {
     voiceExplanations: boolean;
   };
   onboardingCompleted: boolean;
+  geminiApiKey?: string;
+  aiModel?: string;
 }
 
 export interface TeamMember {
@@ -28,6 +30,28 @@ export interface TeamMember {
   role: string;
   avatar: string;
   focus: string;
+}
+
+export interface DocumentChunk {
+  id: string;
+  documentId: string;
+  documentName: string;
+  chunkIndex: number;
+  content: string;
+  pageOrSection?: string;
+}
+
+export interface UploadedDocument {
+  id: string;
+  name: string;
+  size: number;
+  type: 'pdf' | 'docx' | 'txt' | 'md' | 'other';
+  uploadedAt: string;
+  text: string;
+  wordCount: number;
+  chunks: DocumentChunk[];
+  status: 'ready' | 'processing' | 'error';
+  subjectId?: string;
 }
 
 export interface Topic {
@@ -154,4 +178,5 @@ export interface ChatMessage {
     explanation: string;
   };
   audioAvailable?: boolean;
+  documentCitations?: string[];
 }

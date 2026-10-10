@@ -6,7 +6,8 @@ import {
   RevisionTask, 
   Language, 
   TopicStatus,
-  QuestionMarks
+  QuestionMarks,
+  UploadedDocument
 } from '../types';
 import { 
   INITIAL_STUDENT_PROFILE, 
@@ -14,10 +15,12 @@ import {
   QUESTION_BANK_DATA, 
   INITIAL_REVISION_TASKS 
 } from '../data/mockData';
+import { INITIAL_PRELOADED_DOCUMENTS } from '../services/documentParser';
 
 export type ActiveView = 
   | 'dashboard' 
   | 'assistant' 
+  | 'files'
   | 'subjects' 
   | 'syllabus' 
   | 'questions' 
@@ -33,10 +36,12 @@ interface AppContextType {
   studentProfile: StudentProfile;
   updateStudentProfile: (updates: Partial<StudentProfile>) => void;
   subjects: Subject[];
+  setSubjects: React.Dispatch<React.SetStateAction<Subject[]>>;
   activeSubject: Subject;
   setActiveSubjectId: (id: string) => void;
   updateTopicStatus: (subjectId: string, unitId: string, topicId: string, status: TopicStatus) => void;
   questionBank: QuestionItem[];
+  setQuestionBank: React.Dispatch<React.SetStateAction<QuestionItem[]>>;
   toggleBookmarkQuestion: (questionId: string) => void;
   revisionTasks: RevisionTask[];
   toggleRevisionTask: (taskId: string) => void;
@@ -44,6 +49,21 @@ interface AppContextType {
   deleteRevisionTask: (taskId: string) => void;
   selectedQuestionForEvaluation?: QuestionItem;
   setSelectedQuestionForEvaluation: (q?: QuestionItem) => void;
+  
+  // Document Uploads & RAG Grounding
+  uploadedDocuments: UploadedDocument[];
+  addUploadedDocument: (doc: UploadedDocument) => void;
+  deleteUploadedDocument: (id: string) => void;
+  activeDocumentId?: string;
+  setActiveDocumentId: (id?: string) => void;
+
+  // Gemini AI Settings
+  geminiApiKey: string;
+  setGeminiApiKey: (key: string) => void;
+  aiModel: string;
+  setAiModel: (model: string) => void;
+
+  // Modals
   globalSearchOpen: boolean;
   setGlobalSearchOpen: (open: boolean) => void;
   teamModalOpen: boolean;
@@ -56,6 +76,7 @@ interface AppContextType {
   unreadNotificationsCount: number;
   notifications: Array<{ id: string; title: string; message: string; time: string; type: 'alert' | 'success' | 'info' }>;
   dismissNotification: (id: string) => void;
+
   // Speech synthesize helper
   speakText: (text: string, lang?: Language) => void;
   stopSpeech: () => void;
@@ -69,7 +90,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [theme, setTheme] = useState<'dark' | 'light'>('light'); // default academic light
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
@@ -82,6 +103,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return INITIAL_STUDENT_PROFILE;
   });
+
+  // Gemini API key state
+  const [geminiApiKey, setGeminiApiKeyState] = useState<string>(() => {
+    return localStorage.getItem('studypilot_gemini_api_key') || (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
+  });
+
+  const [aiModel, setAiModelState] = useState<string>(() => {
+    return localStorage.getItem('studypilot_gemini_model') || 'gemini-1.5-flash';
+  });
+
+  const setGeminiApiKey = (key: string) => {
+    setGeminiApiKeyState(key);
+    localStorage.setItem('studypilot_gemini_api_key', key);
+  };
+
+  const setAiModel = (model: string) => {
+    setAiModelState(model);
+    localStorage.setItem('studypilot_gemini_model', model);
+  };
+
+  // Uploaded Documents state
+  const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>(() => {
+    const saved = localStorage.getItem('studypilot_documents');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+    }
+    return INITIAL_PRELOADED_DOCUMENTS;
+  });
+
+  const [activeDocumentId, setActiveDocumentId] = useState<string | undefined>(
+    INITIAL_PRELOADED_DOCUMENTS[0]?.id
+  );
+
+  const addUploadedDocument = (doc: UploadedDocument) => {
+    setUploadedDocuments(prev => [doc, ...prev]);
+    setActiveDocumentId(doc.id);
+  };
+
+  const deleteUploadedDocument = (id: string) => {
+    setUploadedDocuments(prev => prev.filter(d => d.id !== id));
+    if (activeDocumentId === id) {
+      setActiveDocumentId(undefined);
+    }
+  };
 
   // Subjects state
   const [subjects, setSubjects] = useState<Subject[]>(() => {
@@ -151,6 +216,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [studentProfile]);
 
   useEffect(() => {
+    localStorage.setItem('studypilot_documents', JSON.stringify(uploadedDocuments));
+  }, [uploadedDocuments]);
+
+  useEffect(() => {
     localStorage.setItem('studypilot_subjects', JSON.stringify(subjects));
   }, [subjects]);
 
@@ -194,17 +263,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return top;
           });
           return { ...unit, topics: updatedTopics };
-        });
-
-        // Calculate progress
-        let total = 0;
-        let completed = 0;
-        updatedUnits.forEach(u => {
-          u.topics.forEach(t => {
-            total++;
-            if (t.status === 'completed') completed += 1;
-            else if (t.status === 'in-progress') completed += 0.5;
-          });
         });
 
         return { ...sub, units: updatedUnits };
@@ -257,11 +315,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const toggleTheme = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(nextTheme);
-    if (nextTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
   };
 
   // Speech functions using Web Speech API
@@ -341,10 +394,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         studentProfile,
         updateStudentProfile,
         subjects,
+        setSubjects,
         activeSubject,
         setActiveSubjectId,
         updateTopicStatus,
         questionBank,
+        setQuestionBank,
         toggleBookmarkQuestion,
         revisionTasks,
         toggleRevisionTask,
@@ -352,6 +407,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteRevisionTask,
         selectedQuestionForEvaluation,
         setSelectedQuestionForEvaluation,
+        uploadedDocuments,
+        addUploadedDocument,
+        deleteUploadedDocument,
+        activeDocumentId,
+        setActiveDocumentId,
+        geminiApiKey,
+        setGeminiApiKey,
+        aiModel,
+        setAiModel,
         globalSearchOpen,
         setGlobalSearchOpen,
         teamModalOpen,

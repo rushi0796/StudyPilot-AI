@@ -11,6 +11,7 @@ import { OnboardingModal } from './components/onboarding/OnboardingModal';
 // Views
 import { DashboardView } from './components/dashboard/DashboardView';
 import { AIAssistantView } from './components/assistant/AIAssistantView';
+import { MyFilesView } from './components/files/MyFilesView';
 import { SubjectsView } from './components/subjects/SubjectsView';
 import { SyllabusExplorerView } from './components/subjects/SyllabusExplorerView';
 import { QuestionBankView } from './components/questions/QuestionBankView';
@@ -30,6 +31,7 @@ const AppContent: React.FC = () => {
     switch (activeView) {
       case 'dashboard': return <DashboardView />;
       case 'assistant': return <AIAssistantView />;
+      case 'files': return <MyFilesView />;
       case 'subjects': return <SubjectsView />;
       case 'syllabus': return <SyllabusExplorerView />;
       case 'questions': return <QuestionBankView />;
@@ -43,7 +45,7 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B1020] text-[#F5F7FA] flex flex-col font-sans selection:bg-[#2F6BFF] selection:text-white">
+    <div className="min-h-screen bg-[#F7F5EF] text-[#252923] flex flex-col font-sans selection:bg-[#245B45] selection:text-white">
       
       {/* Top Academic Context Header */}
       <AcademicHeaderBanner />
@@ -52,16 +54,16 @@ const AppContent: React.FC = () => {
       <Navbar />
 
       {/* Mobile Sidebar Menu Toggle Trigger */}
-      <div className="lg:hidden bg-navy-900 border-b border-navy-800 px-4 py-2 flex items-center justify-between">
+      <div className="lg:hidden bg-white border-b border-[#E5E0D5] px-4 py-2 flex items-center justify-between">
         <button
           onClick={() => setMobileMenuOpen(true)}
-          className="flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-white bg-navy-800 px-3 py-1.5 rounded-lg border border-navy-700"
+          className="flex items-center gap-2 text-xs font-semibold text-charcoal-700 hover:text-charcoal-900 bg-sage-50 px-3 py-1.5 rounded-lg border border-[#E5E0D5]"
         >
-          <Menu className="w-4 h-4 text-electric-400" />
+          <Menu className="w-4 h-4 text-forest-600" />
           <span>Navigation Menu</span>
         </button>
 
-        <span className="text-[11px] font-bold text-electric-300 uppercase tracking-wider">
+        <span className="text-[11px] font-bold text-forest-700 uppercase tracking-wider">
           {activeView.replace('-', ' ')}
         </span>
       </div>
