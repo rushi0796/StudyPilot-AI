@@ -247,10 +247,14 @@ Try asking or speaking:
         if (retrieved.length > 0) {
           chunksToPass = retrieved.map(r => r.chunk);
         } else {
-          // Pass top candidate chunks so server-side searchDocuments can evaluate
-          chunksToPass = candidateChunks.slice(0, 10);
+          // When no chunks match, pass empty array. Never pass arbitrary candidate chunks!
+          chunksToPass = [];
         }
       }
+
+      const activeDocName = activeDocumentId === 'all'
+        ? 'All Uploaded Documents'
+        : activeDoc?.name || (uploadedDocuments[0]?.name || 'Uploaded Notes');
 
       const responseData = await askGeminiTutor({
         query: text,
@@ -261,6 +265,8 @@ Try asking or speaking:
         difficulty,
         simplificationLevel,
         documentChunks: chunksToPass,
+        activeDocumentName: activeDocName,
+        groundWithFiles: groundWithFiles && uploadedDocuments.length > 0,
         academicProfile: {
           university: studentProfile.university,
           course: studentProfile.course,

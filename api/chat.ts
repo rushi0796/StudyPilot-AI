@@ -14,6 +14,8 @@ export interface ChatRequestPayload {
   history?: ChatHistoryItem[];
   language?: 'en' | 'hi' | 'mr' | 'te';
   voiceMode?: boolean;
+  hasActiveDocument?: boolean;
+  activeDocumentName?: string;
   studyContext?: {
     subject?: string;
     topic?: string;
@@ -23,6 +25,8 @@ export interface ChatRequestPayload {
     course?: string;
     branch?: string;
     semester?: string;
+    hasActiveDocument?: boolean;
+    activeDocumentName?: string;
   };
   documentChunks?: DocumentChunkContext[];
   model?: string;
@@ -44,7 +48,7 @@ function evaluateArithmetic(expr: string): number | null {
 /**
  * High-precision lexical and semantic scoring for uploaded document chunks
  */
-function searchDocuments(query: string, chunks?: DocumentChunkContext[]): Array<{ source: string; text: string; score: number }> {
+export function searchDocuments(query: string, chunks?: DocumentChunkContext[]): Array<{ source: string; text: string; score: number }> {
   if (!chunks || chunks.length === 0 || !query.trim()) return [];
 
   const stopWords = new Set(['what', 'is', 'the', 'in', 'of', 'and', 'to', 'a', 'for', 'about', 'how', 'why', 'can', 'you', 'explain', 'tell', 'me']);
@@ -61,7 +65,8 @@ function searchDocuments(query: string, chunks?: DocumentChunkContext[]): Array<
     let score = 0;
 
     // Exact phrase match
-    if (queryLower.length > 5 && textLower.includes(queryLower)) {
+    const hasExactPhrase = queryLower.length > 5 && textLower.includes(queryLower);
+    if (hasExactPhrase) {
       score += 25;
     }
 
@@ -76,6 +81,18 @@ function searchDocuments(query: string, chunks?: DocumentChunkContext[]): Array<
       }
       if (docNameLower.includes(term)) {
         score += 2;
+      }
+    }
+
+    // Multi-term coverage check to eliminate false positives (e.g. "full form of DBMS" matching solely on "dbms")
+    const matchedTerms = terms.filter(t => textLower.includes(t) || sectionLower.includes(t) || docNameLower.includes(t));
+    if (queryLower.includes('full form') && !textLower.includes('full form') && !textLower.includes('database management system')) {
+      score = 0;
+    } else if (!hasExactPhrase) {
+      if (terms.length >= 2 && matchedTerms.length < Math.min(2, terms.length)) {
+        score = 0;
+      } else if (terms.length >= 3 && (matchedTerms.length / terms.length) < 0.7) {
+        score = 0;
       }
     }
 
@@ -130,13 +147,15 @@ export async function processChatRequest(payload: ChatRequestPayload) {
     ? 'The user prefers explanations in Telugu (తెలుగు). Respond primarily in Telugu unless writing code or mathematical equations.'
     : 'Respond in clear, natural English, or match the language/script the user spoke or typed in.';
 
-  // 1. Perform Document Retrieval if document chunks are provided
+  // 1. Perform Document Retrieval if document chunks or active document grounding is provided
   let ragContext = '';
   const retrievedCitations: string[] = [];
-  const hasDocumentsProvided = Boolean(payload.documentChunks && payload.documentChunks.length > 0);
+  const hasChunksProvided = Boolean(payload.documentChunks && payload.documentChunks.length > 0);
+  const isGroundingActive = Boolean(hasChunksProvided || payload.hasActiveDocument || payload.studyContext?.hasActiveDocument);
+  const activeDocName = payload.activeDocumentName || payload.studyContext?.activeDocumentName || payload.documentChunks?.[0]?.documentName || 'uploaded notes';
 
-  if (hasDocumentsProvided) {
-    const relevantPassages = searchDocuments(userMessage, payload.documentChunks);
+  if (isGroundingActive) {
+    const relevantPassages = hasChunksProvided ? searchDocuments(userMessage, payload.documentChunks) : [];
 
     if (relevantPassages.length > 0) {
       relevantPassages.forEach(p => retrievedCitations.push(`[Source: ${p.source}]`));
@@ -151,8 +170,12 @@ export async function processChatRequest(payload: ChatRequestPayload) {
     } else {
       // Document grounding active, but no passages matched query
       ragContext = `\n\n### NOTICE REGARDING UPLOADED STUDY MATERIALS:\n` +
-        `The user has uploaded study documents, but NO relevant passages in their documents matched the query "${userMessage}".\n` +
-        `INSTRUCTION: If and ONLY IF the user is explicitly asking about their uploaded notes or document, state: "I couldn't find this information in your uploaded documents." Otherwise, if they are asking a general question (such as science, general knowledge, programming, sports, jokes, or everyday queries), answer normally from your general knowledge.`;
+        `The user has active study documents (${activeDocName}), but NO relevant passages in their documents matched the query "${userMessage}".\n` +
+        `CRITICAL GROUNDING RULES:
+1. If the student is asking about their uploaded notes or document (or if this is an academic question while document grounding is active):
+   - You MUST begin your answer with: "I couldn't find this information in your uploaded documents."
+   - Then provide your accurate academic explanation labeled: "\n\n[General Knowledge - Not found in uploaded files]: <accurate general explanation>"
+2. If the user is asking a purely casual question (such as "tell me a joke", greetings, everyday chit-chat), answer normally from general knowledge without mentioning uploaded documents.`;
     }
   }
 

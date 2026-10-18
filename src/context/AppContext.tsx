@@ -11,10 +11,12 @@ import {
 } from '../types';
 import { 
   INITIAL_STUDENT_PROFILE, 
+  DEFAULT_NEW_STUDENT_PROFILE,
   SUBJECTS_DATA, 
   QUESTION_BANK_DATA, 
   INITIAL_REVISION_TASKS 
 } from '../data/mockData';
+import { isProfileValid } from '../utils/profileUtils';
 import { INITIAL_PRELOADED_DOCUMENTS } from '../services/documentParser';
 import { 
   loadPersistentDocuments, 
@@ -102,15 +104,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [theme, setTheme] = useState<'dark' | 'light'>('light'); // default academic light
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [teamModalOpen, setTeamModalOpen] = useState(false);
-  const [onboardingOpen, setOnboardingOpen] = useState(false);
-  
-  // Student Profile state
+  // Student Profile state & Onboarding single-source-of-truth
   const [studentProfile, setStudentProfile] = useState<StudentProfile>(() => {
     const saved = localStorage.getItem('studypilot_student_profile');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+      try {
+        const parsed = JSON.parse(saved);
+        if (isProfileValid(parsed)) {
+          return parsed;
+        }
+      } catch (e) { /* ignore */ }
     }
-    return INITIAL_STUDENT_PROFILE;
+    return DEFAULT_NEW_STUDENT_PROFILE;
+  });
+
+  const [onboardingOpen, setOnboardingOpen] = useState<boolean>(() => {
+    const saved = localStorage.getItem('studypilot_student_profile');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (isProfileValid(parsed)) {
+          return false;
+        }
+      } catch (e) { /* ignore */ }
+    }
+    return true; // Brand new session without a valid completed profile triggers onboarding modal
   });
 
   // Gemini API key state
@@ -141,9 +159,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_PRELOADED_DOCUMENTS;
   });
 
-  const [activeDocumentId, setActiveDocumentId] = useState<string | undefined>(
-    INITIAL_PRELOADED_DOCUMENTS[0]?.id
-  );
+  const [activeDocumentId, setActiveDocumentIdState] = useState<string | undefined>(() => {
+    return localStorage.getItem('studypilot_active_doc_id') || INITIAL_PRELOADED_DOCUMENTS[0]?.id;
+  });
+
+  const setActiveDocumentId = (idOrUpdater?: string | ((prev?: string) => string | undefined)) => {
+    setActiveDocumentIdState(prev => {
+      const nextId = typeof idOrUpdater === 'function' ? idOrUpdater(prev) : idOrUpdater;
+      if (nextId) {
+        localStorage.setItem('studypilot_active_doc_id', nextId);
+      } else {
+        localStorage.removeItem('studypilot_active_doc_id');
+      }
+      return nextId;
+    });
+  };
 
   // Initialize from persistent IndexedDB on component mount
   useEffect(() => {
@@ -252,9 +282,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('studypilot_auto_speak', String(val));
   };
 
-  // Sync to local storage
+  // Sync valid profile to local storage immediately
   useEffect(() => {
-    localStorage.setItem('studypilot_student_profile', JSON.stringify(studentProfile));
+    if (isProfileValid(studentProfile)) {
+      localStorage.setItem('studypilot_student_profile', JSON.stringify(studentProfile));
+    }
   }, [studentProfile]);
 
   useEffect(() => {
@@ -297,9 +329,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Update student profile
+  // Update student profile with immediate persistence
   const updateStudentProfile = (updates: Partial<StudentProfile>) => {
-    setStudentProfile(prev => ({ ...prev, ...updates }));
+    setStudentProfile(prev => {
+      const updated = { ...prev, ...updates };
+      try {
+        if (isProfileValid(updated)) {
+          localStorage.setItem('studypilot_student_profile', JSON.stringify(updated));
+        }
+      } catch (e) {
+        console.warn('Failed to save student profile to localStorage:', e);
+      }
+      return updated;
+    });
   };
 
   // Update Topic Status and recalculate subject progress

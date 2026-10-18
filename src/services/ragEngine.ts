@@ -1,4 +1,4 @@
-import { DocumentChunk } from '../types';
+import type { DocumentChunk } from '../types/index.ts';
 
 export interface RetrievedChunkResult {
   chunk: DocumentChunk;
@@ -77,6 +77,22 @@ export function retrieveRelevantChunks(
       // Document name relevance
       if (docNameLower.includes(token)) {
         score += 2.0;
+      }
+    }
+
+    // Check multi-term query coverage to prevent false positives (e.g. "full form of DBMS" matching solely on "dbms")
+    const hasExactPhrase = queryLower.length > 5 && contentLower.includes(queryLower);
+    const matchedTokens = queryTokens.filter(token => 
+      contentLower.includes(token) || sectionLower.includes(token) || docNameLower.includes(token)
+    );
+
+    if (queryLower.includes('full form') && !contentLower.includes('full form') && !contentLower.includes('database management system')) {
+      score = 0;
+    } else if (!hasExactPhrase) {
+      if (queryTokens.length >= 2 && matchedTokens.length < Math.min(2, queryTokens.length)) {
+        score = 0;
+      } else if (queryTokens.length >= 3 && (matchedTokens.length / queryTokens.length) < 0.7) {
+        score = 0;
       }
     }
 

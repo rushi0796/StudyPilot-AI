@@ -38,6 +38,23 @@ export const TEAM_MEMBERS: TeamMember[] = [
   }
 ];
 
+export const DEFAULT_NEW_STUDENT_PROFILE = {
+  name: "",
+  university: "Sanjay Ghodawat University",
+  course: "B.Tech (Four-Year Degree)",
+  branch: "Artificial Intelligence & Machine Learning",
+  year: "2nd Year",
+  semester: "Semester III",
+  preferredLanguage: 'en' as const,
+  learningPreferences: {
+    simpleExplanations: true,
+    stepByStep: true,
+    examplesBased: true,
+    voiceExplanations: true,
+  },
+  onboardingCompleted: false,
+};
+
 export const INITIAL_STUDENT_PROFILE = {
   name: "Aken Rushikesh Gopal",
   university: "Sanjay Ghodawat University",

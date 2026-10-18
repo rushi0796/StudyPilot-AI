@@ -161,6 +161,7 @@ env/
 # Vercel
 .vercel
 
-# Scratch
+# Scratch & Output
 scratch/
+brag-output/
 

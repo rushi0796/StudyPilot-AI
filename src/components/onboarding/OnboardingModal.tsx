@@ -10,10 +10,12 @@ import {
   Sliders, 
   Award,
   CheckCircle2,
+  AlertCircle,
   X
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Language } from '../../types';
+import { getInitials } from '../../utils/profileUtils';
 import confetti from 'canvas-confetti';
 
 export const OnboardingModal: React.FC = () => {
@@ -28,7 +30,11 @@ export const OnboardingModal: React.FC = () => {
 
   const [step, setStep] = useState(1);
 
-  // Form states
+  // Student identity state
+  const [name, setName] = useState(studentProfile.name || '');
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  // Academic form states
   const [university, setUniversity] = useState(studentProfile.university || "Sanjay Ghodawat University");
   const [course, setCourse] = useState(studentProfile.course || "B.Tech (Four-Year Degree)");
   const [branch, setBranch] = useState(studentProfile.branch || "Artificial Intelligence & Machine Learning");
@@ -53,8 +59,38 @@ export const OnboardingModal: React.FC = () => {
     );
   };
 
+  const validateStep = (currentStep: number): boolean => {
+    if (currentStep === 1) {
+      const clean = name.trim();
+      if (!clean) {
+        setNameError('Please enter your full name to proceed with your study assistant.');
+        return false;
+      }
+      if (clean.length < 2) {
+        setNameError('Please enter a valid student name (at least 2 characters).');
+        return false;
+      }
+      setNameError(null);
+    }
+    return true;
+  };
+
+  const handleNextStep = () => {
+    if (validateStep(step)) {
+      setStep(prev => Math.min(prev + 1, 6));
+    }
+  };
+
   const handleFinishOnboarding = () => {
+    const cleanName = name.trim();
+    if (!cleanName) {
+      setStep(1);
+      setNameError('Please enter your full name to proceed with your study assistant.');
+      return;
+    }
+
     updateStudentProfile({
+      name: cleanName,
       university,
       course,
       branch,
@@ -110,47 +146,90 @@ export const OnboardingModal: React.FC = () => {
             ))}
           </div>
 
-          <button
-            onClick={() => setOnboardingOpen(false)}
-            className="text-charcoal-400 hover:text-charcoal-700 p-1"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          {studentProfile.onboardingCompleted ? (
+            <button
+              onClick={() => setOnboardingOpen(false)}
+              className="text-charcoal-400 hover:text-charcoal-700 p-1"
+              title="Close modal"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          ) : (
+            <div className="w-6" />
+          )}
         </div>
 
         {/* Step Content */}
         <div className="py-6 min-h-[340px] flex flex-col justify-center">
           
-          {/* STEP 1: WELCOME */}
+          {/* STEP 1: WELCOME & IDENTITY */}
           {step === 1 && (
             <div className="text-center space-y-4 animate-in fade-in slide-in-from-right-4 duration-200">
-              <div className="w-16 h-16 rounded-2xl bg-forest-500 text-white mx-auto flex items-center justify-center shadow-card">
-                <Sparkles className="w-8 h-8" />
+              <div className="w-14 h-14 rounded-2xl bg-forest-500 text-white mx-auto flex items-center justify-center shadow-card">
+                <Sparkles className="w-7 h-7" />
               </div>
               <div>
                 <h2 className="text-2xl font-black text-charcoal-900">
                   Welcome to StudyPilot AI
                 </h2>
-                <p className="text-sm text-forest-700 font-semibold mt-1">
+                <p className="text-sm text-forest-700 font-semibold mt-0.5">
                   AI-Powered Personalized Study Assistant
                 </p>
               </div>
-              <p className="text-xs text-charcoal-700 max-w-lg mx-auto leading-relaxed">
-                An academic capstone innovation by <strong className="text-charcoal-900">Team Codex</strong>, 2nd-Year Artificial Intelligence students at <strong className="text-charcoal-900">Sanjay Ghodawat University</strong>.
-                Designed to help college students understand complex concepts, study university syllabi, and practice examination questions.
-              </p>
-              <div className="p-4 bg-academic-bg border border-[#E5E0D5] rounded-2xl max-w-md mx-auto text-left text-xs space-y-2">
+
+              {/* Required Student Name Input with Live Avatar Initials Preview */}
+              <div className="max-w-md mx-auto text-left space-y-1.5 p-4 rounded-2xl bg-academic-bg border border-[#E5E0D5]">
+                <label className="block text-xs font-bold text-charcoal-800">
+                  Student Full Name <span className="text-red-500">*</span>
+                </label>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-forest-500 text-white font-bold text-sm flex items-center justify-center shadow-subtle flex-shrink-0">
+                    {getInitials(name)}
+                  </div>
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Enter your full name (e.g. Imam Hussain)"
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      if (nameError) setNameError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleNextStep();
+                      }
+                    }}
+                    className={`flex-1 px-3.5 py-2.5 rounded-xl bg-white border text-xs text-charcoal-900 focus:outline-none transition-colors ${
+                      nameError ? 'border-red-500 bg-red-50/20' : 'border-[#E5E0D5] focus:border-forest-500'
+                    }`}
+                  />
+                </div>
+                {nameError ? (
+                  <p className="text-[11px] text-red-600 font-medium flex items-center gap-1 mt-1">
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>{nameError}</span>
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-charcoal-400 mt-1">
+                    Avatar initials (<strong className="text-forest-700 font-bold">{getInitials(name)}</strong>) update live and sync across your navigation, dashboard, and reports.
+                  </p>
+                )}
+              </div>
+
+              <div className="p-3.5 bg-white border border-[#E5E0D5] rounded-2xl max-w-md mx-auto text-left text-xs space-y-1.5 shadow-subtle">
                 <div className="flex items-center gap-2 text-charcoal-700">
-                  <CheckCircle2 className="w-4 h-4 text-forest-600 flex-shrink-0" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-forest-600 flex-shrink-0" />
                   <span>Syllabus-aligned concepts and university marking rubrics</span>
                 </div>
                 <div className="flex items-center gap-2 text-charcoal-700">
-                  <CheckCircle2 className="w-4 h-4 text-forest-600 flex-shrink-0" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-forest-600 flex-shrink-0" />
                   <span>Upload syllabus notes & PDFs for grounded AI doubt-solving</span>
                 </div>
                 <div className="flex items-center gap-2 text-charcoal-700">
-                  <CheckCircle2 className="w-4 h-4 text-forest-600 flex-shrink-0" />
-                  <span>Multilingual support in English, Hindi, and Telugu with TTS audio</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-forest-600 flex-shrink-0" />
+                  <span>Multilingual explanations in English, Hindi, Marathi, and Telugu</span>
                 </div>
               </div>
             </div>
@@ -381,6 +460,15 @@ export const OnboardingModal: React.FC = () => {
               </div>
 
               <div className="p-4 rounded-2xl bg-academic-bg border border-[#E5E0D5] text-xs space-y-2.5 max-w-lg mx-auto">
+                <div className="flex items-center gap-3 pb-3 border-b border-[#E5E0D5]">
+                  <div className="w-10 h-10 rounded-xl bg-forest-500 text-white flex items-center justify-center font-bold text-sm shadow-subtle flex-shrink-0">
+                    {getInitials(name)}
+                  </div>
+                  <div className="text-left">
+                    <span className="text-[10px] text-charcoal-400 uppercase font-bold tracking-wider block">Student Identity</span>
+                    <span className="font-bold text-charcoal-900 text-sm">{name.trim() || 'Student'}</span>
+                  </div>
+                </div>
                 <div className="flex justify-between pb-2 border-b border-[#E5E0D5]">
                   <span className="text-charcoal-400">University & Program:</span>
                   <span className="font-bold text-charcoal-900">{university} • {year} ({semester})</span>
@@ -395,7 +483,9 @@ export const OnboardingModal: React.FC = () => {
                 </div>
                 <div className="flex justify-between pb-2 border-b border-[#E5E0D5]">
                   <span className="text-charcoal-400">Explanation Language:</span>
-                  <span className="font-bold text-forest-800 uppercase">{selectedLanguage === 'en' ? 'English' : selectedLanguage === 'hi' ? 'Hindi' : 'Telugu'}</span>
+                  <span className="font-bold text-forest-800 uppercase">
+                    {selectedLanguage === 'en' ? 'English' : selectedLanguage === 'hi' ? 'Hindi' : selectedLanguage === 'mr' ? 'Marathi' : 'Telugu'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-charcoal-400">Learning Mode:</span>
@@ -423,7 +513,7 @@ export const OnboardingModal: React.FC = () => {
 
           {step < 6 ? (
             <button
-              onClick={() => setStep(step + 1)}
+              onClick={handleNextStep}
               className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-forest-500 hover:bg-forest-600 shadow-card transition-all"
             >
               <span>Continue</span>

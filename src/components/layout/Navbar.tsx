@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Language } from '../../types';
+import { getInitials, formatDisplayName } from '../../utils/profileUtils';
 
 export const Navbar: React.FC = () => {
   const { 
@@ -255,11 +256,11 @@ export const Navbar: React.FC = () => {
               className="flex items-center gap-2 p-1 pl-1.5 pr-2 rounded-xl bg-academic-bg hover:bg-sage-100 border border-[#E5E0D5] transition-colors group"
             >
               <div className="w-7 h-7 rounded-lg bg-forest-500 text-white flex items-center justify-center text-xs font-bold shadow-subtle">
-                AR
+                {getInitials(studentProfile.name)}
               </div>
               <div className="text-left hidden lg:block">
                 <p className="text-xs font-bold text-charcoal-900 leading-tight">
-                  {studentProfile.name.split(' ')[0]} {studentProfile.name.split(' ')[1]?.[0]}.
+                  {formatDisplayName(studentProfile.name)}
                 </p>
                 <p className="text-[10px] text-charcoal-400 leading-tight">
                   {studentProfile.semester} • AI
@@ -270,12 +271,17 @@ export const Navbar: React.FC = () => {
 
             {profileDropdownOpen && (
               <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white border border-[#E5E0D5] shadow-elevated p-2 z-50">
-                <div className="p-2.5 border-b border-[#E5E0D5]">
-                  <p className="text-xs font-bold text-charcoal-900">{studentProfile.name}</p>
-                  <p className="text-[11px] text-charcoal-400">{studentProfile.university}</p>
-                  <p className="text-[10px] text-forest-700 mt-0.5 font-semibold">
-                    {studentProfile.branch} ({studentProfile.year})
-                  </p>
+                <div className="p-2.5 border-b border-[#E5E0D5] flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-forest-500 text-white flex items-center justify-center text-sm font-bold shadow-subtle flex-shrink-0">
+                    {getInitials(studentProfile.name)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-charcoal-900 truncate">{studentProfile.name || 'Student'}</p>
+                    <p className="text-[11px] text-charcoal-400 truncate">{studentProfile.university}</p>
+                    <p className="text-[10px] text-forest-700 mt-0.5 font-semibold truncate">
+                      {studentProfile.branch} ({studentProfile.year})
+                    </p>
+                  </div>
                 </div>
                 <div className="py-1 space-y-0.5 text-xs">
                   <button

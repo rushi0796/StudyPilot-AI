@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Settings, 
   Building2, 
@@ -62,6 +62,25 @@ export const SettingsView: React.FC = () => {
 
   const [savedSuccess, setSavedSuccess] = useState(false);
 
+  // Sync state whenever studentProfile changes in AppContext
+  useEffect(() => {
+    if (studentProfile) {
+      setName(studentProfile.name || '');
+      setUniversity(studentProfile.university || '');
+      setCourse(studentProfile.course || '');
+      setBranch(studentProfile.branch || '');
+      setYear(studentProfile.year || '');
+      setSemester(studentProfile.semester || '');
+      setLanguage(studentProfile.preferredLanguage || 'en');
+      if (studentProfile.learningPreferences) {
+        setSimpleExplanations(studentProfile.learningPreferences.simpleExplanations ?? true);
+        setStepByStep(studentProfile.learningPreferences.stepByStep ?? true);
+        setExamplesBased(studentProfile.learningPreferences.examplesBased ?? true);
+        setVoiceExplanations(studentProfile.learningPreferences.voiceExplanations ?? true);
+      }
+    }
+  }, [studentProfile]);
+
   const handleTestConnection = async () => {
     setIsTestingKey(true);
     const res = await testGeminiConnection();
@@ -75,14 +94,21 @@ export const SettingsView: React.FC = () => {
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanName = name.trim();
+    if (!cleanName) {
+      alert("Please enter a valid student name.");
+      return;
+    }
+
     updateStudentProfile({
-      name,
+      name: cleanName,
       university,
       course,
       branch,
       year,
       semester,
       preferredLanguage: language,
+      onboardingCompleted: true,
       geminiApiKey: apiKeyInput.trim(),
       aiModel: selectedModel,
       learningPreferences: {

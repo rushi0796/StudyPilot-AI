@@ -21,6 +21,8 @@ export interface AskTutorParams {
   difficulty: DifficultyLevel;
   simplificationLevel?: number;
   documentChunks?: DocumentChunk[];
+  activeDocumentName?: string;
+  groundWithFiles?: boolean;
   academicProfile?: {
     university?: string;
     course?: string;
@@ -75,6 +77,8 @@ export async function askGeminiTutor(params: AskTutorParams): Promise<AskTutorRe
     history: params.history || [],
     language: params.language,
     voiceMode: params.voiceMode,
+    hasActiveDocument: params.groundWithFiles,
+    activeDocumentName: params.activeDocumentName,
     studyContext: {
       subject: params.subject,
       topic: params.topic,
@@ -83,7 +87,9 @@ export async function askGeminiTutor(params: AskTutorParams): Promise<AskTutorRe
       university: params.academicProfile?.university,
       course: params.academicProfile?.course,
       branch: params.academicProfile?.branch,
-      semester: params.academicProfile?.semester
+      semester: params.academicProfile?.semester,
+      hasActiveDocument: params.groundWithFiles,
+      activeDocumentName: params.activeDocumentName
     },
     documentChunks: params.documentChunks?.map(c => ({
       documentName: c.documentName,
