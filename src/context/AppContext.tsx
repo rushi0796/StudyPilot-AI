@@ -21,6 +21,7 @@ import {
   savePersistentDocument, 
   deletePersistentDocument 
 } from '../services/storageService';
+import { speechService } from '../services/speechService';
 
 export type ActiveView = 
   | 'dashboard' 
@@ -89,6 +90,9 @@ interface AppContextType {
   resumeSpeech: () => void;
   isSpeaking: boolean;
   isSpeechPaused: boolean;
+  autoSpeak: boolean;
+  setAutoSpeak: (val: boolean) => void;
+  currentlySpeakingText: string | null;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -238,6 +242,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Speech Synthesis state
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isSpeechPaused, setIsSpeechPaused] = useState(false);
+  const [currentlySpeakingText, setCurrentlySpeakingText] = useState<string | null>(null);
+  const [autoSpeak, setAutoSpeakState] = useState<boolean>(() => {
+    return localStorage.getItem('studypilot_auto_speak') === 'true';
+  });
+
+  const setAutoSpeak = (val: boolean) => {
+    setAutoSpeakState(val);
+    localStorage.setItem('studypilot_auto_speak', String(val));
+  };
 
   // Sync to local storage
   useEffect(() => {
@@ -358,73 +371,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTheme(nextTheme);
   };
 
-  // Speech functions using Web Speech API
+  // Speech functions using dedicated speechService
   const stopSpeech = () => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-      setIsSpeechPaused(false);
-    }
+    speechService.stopSpeaking();
+    setIsSpeaking(false);
+    setIsSpeechPaused(false);
+    setCurrentlySpeakingText(null);
   };
 
   const pauseSpeech = () => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.pause();
-      setIsSpeechPaused(true);
-    }
+    speechService.pauseSpeaking();
+    setIsSpeechPaused(true);
   };
 
   const resumeSpeech = () => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.resume();
-      setIsSpeechPaused(false);
-    }
+    speechService.resumeSpeaking();
+    setIsSpeechPaused(false);
   };
 
   const speakText = (text: string, lang: Language = studentProfile.preferredLanguage) => {
-    if (!('speechSynthesis' in window)) {
-      alert("Text-to-speech is not supported in this browser environment.");
+    if (!text.trim()) return;
+
+    // Toggle off if currently speaking this exact message
+    if (isSpeaking && currentlySpeakingText === text && !isSpeechPaused) {
+      stopSpeech();
       return;
     }
 
-    window.speechSynthesis.cancel();
+    setCurrentlySpeakingText(text);
+    setIsSpeaking(true);
+    setIsSpeechPaused(false);
 
-    // Clean markdown symbols for cleaner speech
-    const cleanText = text
-      .replace(/[#*`_~$\\]/g, ' ')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .trim();
-
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    
-    // Set voice language
-    if (lang === 'hi') {
-      utterance.lang = 'hi-IN';
-    } else if (lang === 'te') {
-      utterance.lang = 'te-IN';
-    } else {
-      utterance.lang = 'en-IN';
-    }
-
-    utterance.rate = 0.95;
-    utterance.pitch = 1.0;
-
-    utterance.onstart = () => {
-      setIsSpeaking(true);
-      setIsSpeechPaused(false);
-    };
-
-    utterance.onend = () => {
-      setIsSpeaking(false);
-      setIsSpeechPaused(false);
-    };
-
-    utterance.onerror = () => {
-      setIsSpeaking(false);
-      setIsSpeechPaused(false);
-    };
-
-    window.speechSynthesis.speak(utterance);
+    speechService.speak({
+      text,
+      language: lang,
+      onStart: () => {
+        setIsSpeaking(true);
+        setIsSpeechPaused(false);
+      },
+      onEnd: () => {
+        setIsSpeaking(false);
+        setIsSpeechPaused(false);
+        setCurrentlySpeakingText(null);
+      },
+      onError: (err) => {
+        console.warn('Speech playback issue:', err);
+        setIsSpeaking(false);
+        setIsSpeechPaused(false);
+        setCurrentlySpeakingText(null);
+      }
+    });
   };
 
   return (
@@ -474,7 +470,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         pauseSpeech,
         resumeSpeech,
         isSpeaking,
-        isSpeechPaused
+        isSpeechPaused,
+        autoSpeak,
+        setAutoSpeak,
+        currentlySpeakingText
       }}
     >
       {children}

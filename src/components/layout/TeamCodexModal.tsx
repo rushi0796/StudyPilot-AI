@@ -31,18 +31,95 @@ export const TeamCodexModal: React.FC = () => {
                 StudyPilot AI
               </h2>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-forest-100 text-forest-800 border border-forest-200">
-                Academic Project
+                Sector: Artificial Intelligence
               </span>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-gold-100 text-gold-600 border border-gold-300">
                 Team Codex
               </span>
             </div>
-            <p className="text-sm text-charcoal-700 font-medium mt-1">
+            <p className="text-sm text-charcoal-700 font-semibold mt-1">
               AI-Powered Personalized Study Assistant for College Students
             </p>
             <p className="text-xs text-charcoal-400 mt-0.5">
               {UNIVERSITY_INFO.name} • {UNIVERSITY_INFO.department} • {UNIVERSITY_INFO.academicYear} ({UNIVERSITY_INFO.semester})
             </p>
+          </div>
+        </div>
+
+        {/* Problem Statement & Solution Framework */}
+        <div className="py-6 border-b border-[#E5E0D5] space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {/* Problem Statement */}
+            <div className="p-5 rounded-2xl bg-academic-bg border border-[#E5E0D5] space-y-2.5">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-charcoal-900">
+                  The Problem Statement
+                </h3>
+              </div>
+              <p className="text-xs text-charcoal-700 leading-relaxed">
+                College students face significant difficulties in understanding complex academic concepts and preparing effectively for examinations. Students belong to different courses, branches, semesters, universities, and syllabi, while examination patterns and marking schemes vary.
+              </p>
+              <div className="space-y-1.5 pt-1 text-[11px] text-charcoal-600">
+                <div className="flex items-start gap-1.5">
+                  <span className="text-rose-500 font-bold">•</span>
+                  <span><strong>Resource Fragmentation:</strong> Juggling textbooks, lecture notes, YouTube videos, and generic AI tools makes studying time-consuming and confusing.</span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <span className="text-rose-500 font-bold">•</span>
+                  <span><strong>Uncalibrated Exam Practice:</strong> Students struggle to identify important topics, practise marks-wise questions, and judge whether written answers have sufficient points.</span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <span className="text-rose-500 font-bold">•</span>
+                  <span><strong>Regional Language Barrier:</strong> Students comfortable in regional languages struggle with technical concepts available only in English.</span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <span className="text-rose-500 font-bold">•</span>
+                  <span><strong>Absence of Diagnostic Feedback:</strong> Traditional methods rarely diagnose individual learning gaps or recommend topics needing revision.</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Solution */}
+            <div className="p-5 rounded-2xl bg-sage-50/70 border border-forest-200 space-y-2.5">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-forest-600" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-forest-900">
+                  The StudyPilot AI Solution
+                </h3>
+              </div>
+              <p className="text-xs text-charcoal-700 leading-relaxed">
+                StudyPilot AI is a centralized AI-powered personalized study assistant customized according to the student’s specific academic profile, university, and syllabus.
+              </p>
+              <div className="space-y-1.5 pt-1 text-[11px] text-charcoal-700">
+                <div className="flex items-start gap-1.5">
+                  <span className="text-forest-600 font-bold">✓</span>
+                  <span><strong>Academic Profile Customization:</strong> Tailors learning to the student’s course, branch, semester, university, and subject.</span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <span className="text-forest-600 font-bold">✓</span>
+                  <span><strong>Intelligent Study Assistant:</strong> Step-by-step explanations, practical examples, repeated progressive simplification, and document grounding with citations.</span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <span className="text-forest-600 font-bold">✓</span>
+                  <span><strong>Multilingual & TTS Audio:</strong> English, Hindi (हिंदी), and Telugu (తెలుగు) with Web Speech Text-to-Speech audio support.</span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <span className="text-forest-600 font-bold">✓</span>
+                  <span><strong>Marks-Wise Question Bank:</strong> Comprehensive 2, 3, 4, 5, 7, and 10-mark questions with marking criteria and model answers.</span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <span className="text-forest-600 font-bold">✓</span>
+                  <span><strong>AI Answer Evaluator:</strong> Grades student answers, estimates marks, flags missing concepts, and suggests presentation improvements.</span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <span className="text-forest-600 font-bold">✓</span>
+                  <span><strong>Revision Planner & Gap Detection:</strong> Auto-flags weak topics from missed quiz questions and adds spaced-repetition revision tasks.</span>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
 

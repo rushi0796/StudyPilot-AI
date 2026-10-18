@@ -1,4 +1,18 @@
-export type Language = 'en' | 'hi' | 'te';
+export type Language = 'en' | 'hi' | 'mr' | 'te';
+
+export type SpeechRecognitionState = 
+  | 'idle' 
+  | 'requesting_permission' 
+  | 'listening' 
+  | 'processing' 
+  | 'responding'
+  | 'error';
+
+export type SpeechSynthesisState = 
+  | 'idle' 
+  | 'speaking' 
+  | 'paused' 
+  | 'error';
 
 export type DifficultyLevel = 'simple' | 'standard' | 'detailed';
 

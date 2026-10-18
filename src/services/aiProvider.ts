@@ -21,6 +21,13 @@ export interface AskTutorParams {
   difficulty: DifficultyLevel;
   simplificationLevel?: number;
   documentChunks?: DocumentChunk[];
+  academicProfile?: {
+    university?: string;
+    course?: string;
+    branch?: string;
+    semester?: string;
+  };
+  voiceMode?: boolean;
 }
 
 export interface AskTutorResponse {
@@ -67,11 +74,16 @@ export async function askGeminiTutor(params: AskTutorParams): Promise<AskTutorRe
     message: params.query,
     history: params.history || [],
     language: params.language,
+    voiceMode: params.voiceMode,
     studyContext: {
       subject: params.subject,
       topic: params.topic,
       difficulty: params.difficulty,
-      simplificationLevel: params.simplificationLevel
+      simplificationLevel: params.simplificationLevel,
+      university: params.academicProfile?.university,
+      course: params.academicProfile?.course,
+      branch: params.academicProfile?.branch,
+      semester: params.academicProfile?.semester
     },
     documentChunks: params.documentChunks?.map(c => ({
       documentName: c.documentName,

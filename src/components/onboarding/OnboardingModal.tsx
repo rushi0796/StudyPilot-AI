@@ -290,10 +290,11 @@ export const OnboardingModal: React.FC = () => {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
                   { id: 'en' as Language, title: 'English', desc: 'Standard technical terminology & university exam phrasing', icon: 'EN' },
                   { id: 'hi' as Language, title: 'Hindi (हिंदी)', desc: 'सरल हिंदी व्याख्या, दैनिक जीवन के उदाहरण और परीक्षा बिंदु', icon: 'हि' },
+                  { id: 'mr' as Language, title: 'Marathi (मराठी)', desc: 'सोप्या मराठीत स्पष्टीकरण, रोजच्या जीवनातील उदाहरणे आणि महत्त्वाचे मुद्दे', icon: 'म' },
                   { id: 'te' as Language, title: 'Telugu (తెలుగు)', desc: 'సులభమైన తెలుగు వివరణ, ఉదాహరణలు మరియు ముఖ్యమైన కాన్సెప్ట్స్', icon: 'తె' },
                 ].map((l) => (
                   <button

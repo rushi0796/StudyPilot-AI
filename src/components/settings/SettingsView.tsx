@@ -323,6 +323,7 @@ export const SettingsView: React.FC = () => {
               >
                 <option value="en">English (Official University Phrasing)</option>
                 <option value="hi">Hindi (हिंदी - सरल व्याख्या एवं उदाहरण)</option>
+                <option value="mr">Marathi (मराठी - सोप्या भाषेत स्पष्टीकरण)</option>
                 <option value="te">Telugu (తెలుగు - కాన్సెప్ట్స్ మరియు వివరణ)</option>
               </select>
             </div>

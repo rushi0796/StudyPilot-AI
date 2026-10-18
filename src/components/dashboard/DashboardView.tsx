@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Sparkles, 
   ArrowRight, 
@@ -14,7 +14,9 @@ import {
   TrendingUp,
   FileQuestion,
   GraduationCap,
-  FolderOpen
+  FolderOpen,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
@@ -29,6 +31,8 @@ export const DashboardView: React.FC = () => {
     toggleRevisionTask,
     uploadedDocuments
   } = useApp();
+
+  const [showVisionFramework, setShowVisionFramework] = useState(false);
 
   const pendingRevisions = revisionTasks.filter(r => !r.completed);
 
@@ -103,6 +107,138 @@ export const DashboardView: React.FC = () => {
             );
           })}
         </div>
+      </div>
+
+      {/* 1.5 Academic Architecture & Problem/Solution Framework Banner */}
+      <div className="rounded-3xl bg-white border border-[#E5E0D5] p-5 shadow-subtle hover:border-forest-300 transition-colors">
+        <div 
+          className="flex items-center justify-between cursor-pointer select-none" 
+          onClick={() => setShowVisionFramework(!showVisionFramework)}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-forest-50 border border-forest-200 flex items-center justify-center text-forest-700 flex-shrink-0">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-black text-charcoal-900">StudyPilot AI — Product Architecture & Problem-Solution Matrix</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-forest-100 text-forest-800 border border-forest-200">
+                  Domain: Artificial Intelligence
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gold-100 text-gold-700 border border-gold-200">
+                  Team Codex • SGU
+                </span>
+              </div>
+              <p className="text-xs text-charcoal-600 mt-0.5">
+                Centralized personalized study platform solving curriculum mismatch, marks-wise practice, and language barriers.
+              </p>
+            </div>
+          </div>
+          <button 
+            type="button" 
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-academic-bg border border-[#E5E0D5] text-xs font-bold text-charcoal-700 hover:bg-sage-100 transition-colors flex-shrink-0"
+          >
+            <span>{showVisionFramework ? 'Hide Overview' : 'View Core Architecture'}</span>
+            {showVisionFramework ? <ChevronUp className="w-4 h-4 text-forest-600" /> : <ChevronDown className="w-4 h-4 text-forest-600" />}
+          </button>
+        </div>
+
+        {showVisionFramework && (
+          <div className="mt-5 pt-5 border-t border-[#E5E0D5] space-y-4 animate-in fade-in duration-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+              {/* Problem Statement Card */}
+              <div className="p-4 rounded-2xl bg-academic-bg border border-[#E5E0D5] space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-charcoal-900">
+                    The Problem College Students Face
+                  </h3>
+                </div>
+                <p className="text-xs text-charcoal-700 leading-relaxed">
+                  Students struggle with complex academic concepts and exam preparation due to diverse syllabi, inconsistent university marking schemes, and fragmented resources.
+                </p>
+                <div className="space-y-2 pt-1 text-[11px] text-charcoal-600">
+                  <div className="flex items-start gap-2">
+                    <span className="text-rose-500 font-bold leading-tight">•</span>
+                    <span><strong>Resource Fragmentation:</strong> Juggling textbooks, lecture slides, YouTube videos, and generic AI tools leads to confusion and wasted study hours.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-rose-500 font-bold leading-tight">•</span>
+                    <span><strong>Uncalibrated Marks Practice:</strong> Inability to practise questions calibrated to 2, 3, 4, 5, 7, and 10 marks or know whether written answers hit key scoring points.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-rose-500 font-bold leading-tight">•</span>
+                    <span><strong>Regional Language Barrier:</strong> Technical concepts presented solely in English hinder comprehension for students proficient in regional tongues (Hindi, Telugu).</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-rose-500 font-bold leading-tight">•</span>
+                    <span><strong>Absence of Diagnostic Feedback:</strong> No objective mechanism to pinpoint individual weak topics or structure spaced revision before examinations.</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Solution Matrix Card */}
+              <div className="p-4 rounded-2xl bg-sage-50/70 border border-forest-200 space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-forest-600" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-forest-900">
+                    The StudyPilot AI Solution Matrix
+                  </h3>
+                </div>
+                <p className="text-xs text-charcoal-700 leading-relaxed">
+                  A centralized AI study companion that adapts entirely to the student’s academic profile, curriculum, and exam structure.
+                </p>
+                <div className="space-y-2 pt-1 text-[11px] text-charcoal-700">
+                  <div className="flex items-start gap-2">
+                    <span className="text-forest-600 font-bold leading-tight">✓</span>
+                    <span><strong>Academic Profile Adaptation:</strong> Gemini 2.5 Flash context is customized to university, degree, branch, semester, and course units.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-forest-600 font-bold leading-tight">✓</span>
+                    <span><strong>Concept Mastery & Repeated Simplification:</strong> Step-by-step breakdowns, real-world analogies, and multi-tier progressive simplification.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-forest-600 font-bold leading-tight">✓</span>
+                    <span><strong>Multilingual Explanations + TTS:</strong> Instant switches between English, Hindi, and Telugu with native Web Speech synthesis.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-forest-600 font-bold leading-tight">✓</span>
+                    <span><strong>Marks-Wise Practice (2 to 10 Marks):</strong> Calibrated question bank with step marking schemes, key point rubrics, and common traps.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-forest-600 font-bold leading-tight">✓</span>
+                    <span><strong>AI Answer Evaluator:</strong> Detailed criteria-based scoring, marks estimation, missing concept flags, and presentation tips.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-forest-600 font-bold leading-tight">✓</span>
+                    <span><strong>Automated Revision Planner:</strong> Real-time weakness diagnostic adding spaced-repetition tasks for every missed concept.</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Quick feature links */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 px-1 text-xs">
+              <span className="text-charcoal-400 font-medium">Explore built-in modules:</span>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setActiveView('assistant')} className="px-2.5 py-1 rounded-lg bg-forest-50 text-forest-700 hover:bg-forest-100 font-semibold border border-forest-200 transition-colors">
+                  AI Study Assistant & Tutor →
+                </button>
+                <button onClick={() => setActiveView('questions')} className="px-2.5 py-1 rounded-lg bg-academic-bg text-charcoal-700 hover:bg-sage-100 font-semibold border border-[#E5E0D5] transition-colors">
+                  Marks-Wise Question Bank →
+                </button>
+                <button onClick={() => setActiveView('evaluator')} className="px-2.5 py-1 rounded-lg bg-academic-bg text-charcoal-700 hover:bg-sage-100 font-semibold border border-[#E5E0D5] transition-colors">
+                  AI Answer Evaluator →
+                </button>
+                <button onClick={() => setActiveView('planner')} className="px-2.5 py-1 rounded-lg bg-academic-bg text-charcoal-700 hover:bg-sage-100 font-semibold border border-[#E5E0D5] transition-colors">
+                  Revision Planner →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 2. Key Metrics & Learning Progress Indicators */}
