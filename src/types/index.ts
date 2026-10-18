@@ -193,4 +193,8 @@ export interface ChatMessage {
   };
   audioAvailable?: boolean;
   documentCitations?: string[];
+  /** Populated when the answer was NOT found in the uploaded PDF and a web search was performed */
+  webSearchResult?: string;
+  /** True when this message used web search as a fallback (answer not in PDF) */
+  isWebSearchFallback?: boolean;
 }

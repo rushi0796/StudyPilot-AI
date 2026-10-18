@@ -39,6 +39,10 @@ export interface AskTutorResponse {
   citations?: string[];
   toolCalls?: Array<{ name: string; args: any; result: any }>;
   isLive: boolean;
+  /** Web search answer when not found in uploaded PDF */
+  webSearchResult?: string;
+  /** True when the PDF had no relevant content and web search was used */
+  isWebSearchFallback?: boolean;
 }
 
 /**
@@ -126,7 +130,9 @@ export async function askGeminiTutor(params: AskTutorParams): Promise<AskTutorRe
       : ['Explain in more detail', 'Give a real-world example', 'What are related exam questions?'],
     citations: data.citations || (parsed.citations.length > 0 ? parsed.citations : undefined),
     toolCalls: data.toolCallsExecuted,
-    isLive: true
+    isLive: true,
+    webSearchResult: data.webSearchResult,
+    isWebSearchFallback: data.isWebSearchFallback
   };
 }
 

@@ -168,14 +168,8 @@ export async function processChatRequest(payload: ChatRequestPayload) {
 4. If the user asks about something specific to their uploaded document that is NOT in the retrieved excerpts, clearly say: "I couldn't find this information in your uploaded documents." You may then offer general knowledge, explicitly labeled: "[General Knowledge - Not found in uploaded files]: <explanation>".
 5. Never claim an answer came from a file unless the content is in the excerpts above.`;
     } else {
-      // Document grounding active, but no passages matched query
-      ragContext = `\n\n### NOTICE REGARDING UPLOADED STUDY MATERIALS:\n` +
-        `The user has active study documents (${activeDocName}), but NO relevant passages in their documents matched the query "${userMessage}".\n` +
-        `CRITICAL GROUNDING RULES:
-1. If the student is asking about their uploaded notes or document (or if this is an academic question while document grounding is active):
-   - You MUST begin your answer with: "I couldn't find this information in your uploaded documents."
-   - Then provide your accurate academic explanation labeled: "\n\n[General Knowledge - Not found in uploaded files]: <accurate general explanation>"
-2. If the user is asking a purely casual question (such as "tell me a joke", greetings, everyday chit-chat), answer normally from general knowledge without mentioning uploaded documents.`;
+      // Document grounding active, but NO passages matched query — mark for web search fallback
+      ragContext = 'WEB_SEARCH_FALLBACK';
     }
   }
 
@@ -381,6 +375,68 @@ Core Capabilities & Operating Principles:
           code: 'EMPTY_RESPONSE',
           status: 502
         }
+      };
+    }
+
+    // ── Web Search Fallback ────────────────────────────────────────────────────
+    // When document grounding is active but NO PDF chunks matched, perform a
+    // secondary Gemini call with the google_search grounding tool so the student
+    // still gets a real, web-sourced answer clearly distinguished from PDF content.
+    if (ragContext === 'WEB_SEARCH_FALLBACK') {
+      const webSearchBody: any = {
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: userMessage }]
+          }
+        ],
+        systemInstruction: {
+          parts: [{ text: `You are StudyPilot AI, an intelligent academic assistant for ${targetUniversity} students. Answer the following question clearly and concisely using up-to-date information from the web. ${languageSpec}` }]
+        },
+        generationConfig: {
+          temperature: 0.4,
+          maxOutputTokens: 1024
+        },
+        tools: [{ googleSearch: {} }]
+      };
+
+      try {
+        // Use gemini-2.5-flash for web search grounding
+        const webSearchModel = 'gemini-2.5-flash';
+        const webSearchUrl = `https://generativelanguage.googleapis.com/v1beta/models/${webSearchModel}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const webResp = await fetch(webSearchUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(webSearchBody)
+        });
+
+        if (webResp.ok) {
+          const webData = await webResp.json();
+          const webText = webData.candidates?.[0]?.content?.parts?.find((p: any) => typeof p.text === 'string')?.text || '';
+          if (webText) {
+            return {
+              text: `⚠️ This information was not found in your uploaded PDF.
+
+I searched the web and found the following answer:`,
+              webSearchResult: webText,
+              model: modelName,
+              isWebSearchFallback: true
+            };
+          }
+        }
+      } catch {
+        // Web search failed — fall through to normal general-knowledge answer below
+      }
+
+      // If web search itself failed, give a clear honest general-knowledge answer
+      return {
+        text: `⚠️ This information was not found in your uploaded PDF.
+
+Here is a general knowledge answer (not from your document):
+
+${outputText}`,
+        model: modelName,
+        isWebSearchFallback: true
       };
     }
 

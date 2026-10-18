@@ -288,7 +288,9 @@ Try asking or speaking:
         followUpSuggestions: responseData.suggestions,
         quizPrompt: responseData.quiz,
         audioAvailable: true,
-        documentCitations: responseData.citations
+        documentCitations: responseData.citations,
+        webSearchResult: responseData.webSearchResult,
+        isWebSearchFallback: responseData.isWebSearchFallback
       };
 
       setMessages(prev => [...prev, assistantMsg]);
@@ -645,6 +647,29 @@ Try asking or speaking:
                           {cit}
                         </span>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Web Search Fallback Result */}
+                {!isUser && msg.isWebSearchFallback && msg.webSearchResult && (
+                  <div className="mt-3 rounded-xl overflow-hidden border border-blue-200">
+                    {/* Banner: not found in PDF */}
+                    <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border-b border-amber-200">
+                      <span className="text-amber-600 text-sm">⚠️</span>
+                      <span className="text-[11px] font-bold text-amber-800">
+                        This answer was not found in your uploaded PDF
+                      </span>
+                    </div>
+                    {/* Web search answer */}
+                    <div className="px-4 py-3 bg-blue-50">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Globe className="w-3.5 h-3.5 text-blue-600" />
+                        <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wide">Web Search Result</span>
+                      </div>
+                      <div className="text-xs text-charcoal-800 leading-relaxed whitespace-pre-wrap">
+                        {msg.webSearchResult}
+                      </div>
                     </div>
                   </div>
                 )}
