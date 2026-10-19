@@ -128,8 +128,13 @@ export async function queryNeon<T = any>(queryText: string, params: any[] = []):
     throw new DatabaseConfigurationError();
   }
   const sql = neon(connectionString);
-  const result = await (sql as any)(queryText, params);
-  return (result as T[]) || [];
+  if (params && params.length > 0) {
+    const result = await (sql as any)(queryText, params);
+    return (result as T[]) || [];
+  } else {
+    const result = await (sql as any)(queryText);
+    return (result as T[]) || [];
+  }
 }
 
 export async function ensureDatabaseSchema(): Promise<void> {
@@ -173,11 +178,9 @@ export async function ensureDatabaseSchema(): Promise<void> {
       );
     `);
 
-    await queryNeon(`
-      CREATE INDEX IF NOT EXISTS idx_studypilot_users_email ON studypilot_users(email);
-      CREATE INDEX IF NOT EXISTS idx_studypilot_sessions_token_hash ON studypilot_sessions(token_hash);
-      CREATE INDEX IF NOT EXISTS idx_studypilot_sessions_user_id ON studypilot_sessions(user_id);
-    `);
+    await queryNeon('CREATE INDEX IF NOT EXISTS idx_studypilot_users_email ON studypilot_users(email);');
+    await queryNeon('CREATE INDEX IF NOT EXISTS idx_studypilot_sessions_token_hash ON studypilot_sessions(token_hash);');
+    await queryNeon('CREATE INDEX IF NOT EXISTS idx_studypilot_sessions_user_id ON studypilot_sessions(user_id);');
 
     schemaInitialized = true;
   } catch (err: any) {
@@ -837,7 +840,7 @@ export async function processSignup(body: any, clientIp = '127.0.0.1') {
     }
     return {
       status: 500,
-      body: { error: { message: 'Internal error during signup.', code: 'INTERNAL_ERROR' } }
+      body: { error: { message: err?.message ? `Internal error during signup: ${err.message}` : 'Internal error during signup.', code: 'INTERNAL_ERROR' } }
     };
   }
 }
@@ -921,7 +924,7 @@ export async function processLogin(body: any, clientIp = '127.0.0.1') {
     }
     return {
       status: 500,
-      body: { error: { message: 'Internal error during login.', code: 'INTERNAL_ERROR' } }
+      body: { error: { message: err?.message ? `Internal error during login: ${err.message}` : 'Internal error during login.', code: 'INTERNAL_ERROR' } }
     };
   }
 }
