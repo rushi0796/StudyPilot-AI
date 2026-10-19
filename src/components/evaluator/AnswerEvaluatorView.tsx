@@ -24,7 +24,8 @@ export const AnswerEvaluatorView: React.FC = () => {
     questionBank,
     addRevisionTask,
     uploadedDocuments,
-    activeDocumentId
+    activeDocumentId,
+    recordAnswerEvaluation
   } = useApp();
 
   const [selectedMarks, setSelectedMarks] = useState<QuestionMarks>(
@@ -121,6 +122,17 @@ Both tables are now in 3NF and free from transitive anomalies.`
       setTimeout(() => {
         setIsEvaluating(false);
         setEvaluationResult(result);
+
+        // Record personalized answer evaluation metrics to server
+        recordAnswerEvaluation({
+          question: selectedQuestion.text,
+          subject: selectedQuestion.subjectCode || 'Database Management Systems',
+          maxMarks: selectedMarks,
+          estimatedMarks: result.estimatedMarks,
+          scorePercentage: result.scorePercentage,
+          gradeTier: result.gradeTier
+        });
+
         if (result.scorePercentage >= 75) {
           try {
             confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });

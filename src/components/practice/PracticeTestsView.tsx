@@ -24,7 +24,8 @@ export const PracticeTestsView: React.FC = () => {
     setActiveView, 
     activeSubject, 
     uploadedDocuments, 
-    activeDocumentId 
+    activeDocumentId,
+    recordQuizAttempt
   } = useApp();
 
   const [testState, setTestState] = useState<'intro' | 'active' | 'results'>('intro');
@@ -109,19 +110,37 @@ export const PracticeTestsView: React.FC = () => {
     setShowSubmitConfirm(false);
 
     let calculatedScore = 0;
+    let correctCount = 0;
     quizQuestions.forEach(q => {
       const ans = userAnswers[q.id];
       if (q.type === 'mcq') {
-        if (ans === q.correctAnswer) calculatedScore += q.marks;
+        if (ans === q.correctAnswer) {
+          calculatedScore += q.marks;
+          correctCount++;
+        }
       } else {
         if (ans && typeof ans === 'string' && (ans.toLowerCase().includes('exclusive') || ans.toLowerCase().includes('transitive'))) {
           calculatedScore += q.marks;
+          correctCount++;
         }
       }
     });
 
     setScore(calculatedScore);
     setTestState('results');
+
+    // Persist per-user quiz metrics to server
+    recordQuizAttempt({
+      quizId: 'quiz_standard',
+      title: DEMO_QUIZ_SESSION.title || 'SGU Semester III Mock Test',
+      subjectId: activeSubject?.id || 'cs201',
+      subjectName: activeSubject?.name || 'Database Management Systems',
+      score: calculatedScore,
+      totalMarks: totalPossibleMarks,
+      questionsCount: quizQuestions.length,
+      correctCount,
+      timeSpentSeconds: Math.max(0, (15 * 60) - timeLeftSeconds)
+    });
 
     if (calculatedScore >= 14) {
       try {

@@ -198,3 +198,31 @@ export interface ChatMessage {
   /** True when this message used web search as a fallback (answer not in PDF) */
   isWebSearchFallback?: boolean;
 }
+
+export interface StudentProgress {
+  overall_progress: number;
+  quizzes_completed: number;
+  questions_answered: number;
+  correct_answers: number;
+  accuracy_percentage: number;
+  evaluations_completed: number;
+  tasks_completed: number;
+  streak_days: number;
+  last_active_at: string;
+}
+
+export interface ActivityLog {
+  id: string;
+  user_id?: string;
+  activity_type: string;
+  subject_id?: string;
+  title: string;
+  description?: string;
+  score_percentage?: number;
+  created_at: string;
+}
+
+export interface SubjectProgressMap {
+  [subjectId: string]: number;
+}
+

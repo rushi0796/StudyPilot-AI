@@ -30,7 +30,8 @@ export const DashboardView: React.FC = () => {
     setActiveView, 
     revisionTasks,
     toggleRevisionTask,
-    uploadedDocuments
+    uploadedDocuments,
+    studentProgress
   } = useApp();
 
   const { currentUser, openAuthModal } = useAuth();
@@ -62,7 +63,7 @@ export const DashboardView: React.FC = () => {
               )}
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
                 <Flame className="w-3.5 h-3.5 text-amber-600" />
-                4-Day Study Streak
+                {currentUser ? `${studentProgress.streak_days}-Day Study Streak` : '4-Day Study Streak (Demo)'}
               </span>
             </div>
 
@@ -272,11 +273,18 @@ export const DashboardView: React.FC = () => {
             <BookOpen className="w-4 h-4 text-forest-600" />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-charcoal-900">64%</span>
-            <span className="text-[11px] text-forest-700 font-bold">+8% this week</span>
+            <span className="text-2xl font-black text-charcoal-900">
+              {currentUser ? `${studentProgress.overall_progress}%` : '64%'}
+            </span>
+            <span className="text-[11px] text-forest-700 font-bold">
+              {currentUser ? (studentProgress.overall_progress === 0 ? 'Not started' : `${studentProgress.overall_progress}% completed`) : '+8% this week'}
+            </span>
           </div>
           <div className="w-full bg-sage-100 h-2 rounded-full mt-3 overflow-hidden">
-            <div className="bg-forest-500 h-full rounded-full" style={{ width: '64%' }} />
+            <div 
+              className="bg-forest-500 h-full rounded-full transition-all duration-500" 
+              style={{ width: `${currentUser ? studentProgress.overall_progress : 64}%` }} 
+            />
           </div>
         </div>
 
@@ -286,25 +294,39 @@ export const DashboardView: React.FC = () => {
             <FileQuestion className="w-4 h-4 text-forest-600" />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-charcoal-900">42</span>
-            <span className="text-[11px] text-charcoal-400">across 2-10 marks</span>
+            <span className="text-2xl font-black text-charcoal-900">
+              {currentUser ? studentProgress.questions_answered : 42}
+            </span>
+            <span className="text-[11px] text-charcoal-400">
+              {currentUser ? `${studentProgress.correct_answers} correct` : 'across 2-10 marks'}
+            </span>
           </div>
           <div className="w-full bg-sage-100 h-2 rounded-full mt-3 overflow-hidden">
-            <div className="bg-forest-500 h-full rounded-full" style={{ width: '55%' }} />
+            <div 
+              className="bg-forest-500 h-full rounded-full transition-all duration-500" 
+              style={{ width: `${currentUser ? Math.min(100, Math.round((studentProgress.questions_answered / 20) * 100)) : 55}%` }} 
+            />
           </div>
         </div>
 
         <div className="p-5 rounded-2xl bg-white border border-[#E5E0D5] shadow-subtle hover:border-forest-300 transition-colors">
           <div className="flex items-center justify-between text-charcoal-400 text-xs">
-            <span>Evaluator Avg Score</span>
+            <span>Accuracy & Quiz Mastery</span>
             <Award className="w-4 h-4 text-gold-500" />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-charcoal-900">78%</span>
-            <span className="text-[11px] text-forest-700 font-bold">Good Tier</span>
+            <span className="text-2xl font-black text-charcoal-900">
+              {currentUser ? `${studentProgress.accuracy_percentage}%` : '78%'}
+            </span>
+            <span className="text-[11px] text-forest-700 font-bold">
+              {currentUser ? `${studentProgress.quizzes_completed} quizzes` : 'Good Tier'}
+            </span>
           </div>
           <div className="w-full bg-sage-100 h-2 rounded-full mt-3 overflow-hidden">
-            <div className="bg-forest-500 h-full rounded-full" style={{ width: '78%' }} />
+            <div 
+              className="bg-forest-500 h-full rounded-full transition-all duration-500" 
+              style={{ width: `${currentUser ? studentProgress.accuracy_percentage : 78}%` }} 
+            />
           </div>
         </div>
 

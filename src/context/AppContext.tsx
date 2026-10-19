@@ -7,7 +7,10 @@ import {
   Language, 
   TopicStatus,
   QuestionMarks,
-  UploadedDocument
+  UploadedDocument,
+  StudentProgress,
+  ActivityLog,
+  SubjectProgressMap
 } from '../types';
 import { 
   INITIAL_STUDENT_PROFILE, 
@@ -16,6 +19,26 @@ import {
   QUESTION_BANK_DATA, 
   INITIAL_REVISION_TASKS 
 } from '../data/mockData';
+
+export const DEFAULT_ZERO_PROGRESS: StudentProgress = {
+  overall_progress: 0,
+  quizzes_completed: 0,
+  questions_answered: 0,
+  correct_answers: 0,
+  accuracy_percentage: 0,
+  evaluations_completed: 0,
+  tasks_completed: 0,
+  streak_days: 0,
+  last_active_at: new Date().toISOString()
+};
+
+export const DEFAULT_SUBJECT_PROGRESS: SubjectProgressMap = {
+  cs201: 0,
+  ai202: 0,
+  cs203: 0,
+  ma204: 0,
+  cs205: 0
+};
 import { isProfileValid } from '../utils/profileUtils';
 import { INITIAL_PRELOADED_DOCUMENTS } from '../services/documentParser';
 import { 
@@ -58,6 +81,15 @@ interface AppContextType {
   deleteRevisionTask: (taskId: string) => void;
   selectedQuestionForEvaluation?: QuestionItem;
   setSelectedQuestionForEvaluation: (q?: QuestionItem) => void;
+
+  // Student Progress & Persistence
+  studentProgress: StudentProgress;
+  subjectProgress: SubjectProgressMap;
+  recentActivity: ActivityLog[];
+  isProgressLoading: boolean;
+  refreshProgress: () => Promise<void>;
+  recordQuizAttempt: (data: any) => Promise<any>;
+  recordAnswerEvaluation: (data: any) => Promise<any>;
   
   // Document Uploads & RAG Grounding
   uploadedDocuments: UploadedDocument[];
@@ -238,6 +270,126 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  // Per-User Student Progress State
+  const [studentProgress, setStudentProgress] = useState<StudentProgress>(DEFAULT_ZERO_PROGRESS);
+  const [subjectProgress, setSubjectProgress] = useState<SubjectProgressMap>(DEFAULT_SUBJECT_PROGRESS);
+  const [recentActivity, setRecentActivity] = useState<ActivityLog[]>([]);
+  const [isProgressLoading, setIsProgressLoading] = useState<boolean>(false);
+
+  const refreshProgress = async () => {
+    if (!currentUser) return;
+    try {
+      setIsProgressLoading(true);
+      const res = await fetch('/api/progress', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.progress) {
+          setStudentProgress(json.progress);
+        }
+        if (json.subjectProgress) {
+          setSubjectProgress(json.subjectProgress);
+        }
+        if (Array.isArray(json.recentActivity)) {
+          setRecentActivity(json.recentActivity);
+        }
+
+        // Synchronize topic progress into subjects
+        const topicStatusMap = new Map<string, TopicStatus>();
+        if (json.topicProgress) {
+          if (Array.isArray(json.topicProgress)) {
+            json.topicProgress.forEach((tp: any) => {
+              topicStatusMap.set(tp.topic_id || tp.topicId, tp.status);
+            });
+          } else if (typeof json.topicProgress === 'object') {
+            Object.entries(json.topicProgress).forEach(([topId, status]) => {
+              topicStatusMap.set(topId, status as TopicStatus);
+            });
+          }
+        }
+
+        setSubjects(prevSubjects => {
+          return prevSubjects.map(sub => ({
+            ...sub,
+            units: sub.units.map(unit => ({
+              ...unit,
+              topics: unit.topics.map(topic => {
+                const status = topicStatusMap.get(topic.id);
+                return {
+                  ...topic,
+                  status: status || 'not-started'
+                };
+              })
+            }))
+          }));
+        });
+      }
+    } catch (err) {
+      console.warn('Could not load student progress:', err);
+    } finally {
+      setIsProgressLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser?.id) {
+      refreshProgress();
+    } else {
+      setStudentProgress(DEFAULT_ZERO_PROGRESS);
+      setSubjectProgress(DEFAULT_SUBJECT_PROGRESS);
+      setRecentActivity([]);
+    }
+  }, [currentUser?.id]);
+
+  const recordQuizAttempt = async (data: any) => {
+    if (!currentUser) return null;
+    try {
+      const res = await fetch('/api/progress?action=quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.summary) {
+          setStudentProgress(json.summary);
+        }
+        await refreshProgress();
+        return json;
+      }
+    } catch (err) {
+      console.warn('Could not record quiz attempt:', err);
+    }
+    return null;
+  };
+
+  const recordAnswerEvaluation = async (data: any) => {
+    if (!currentUser) return null;
+    try {
+      const res = await fetch('/api/progress?action=evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.summary) {
+          setStudentProgress(json.summary);
+        }
+        await refreshProgress();
+        return json;
+      }
+    } catch (err) {
+      console.warn('Could not record answer evaluation:', err);
+    }
+    return null;
+  };
+
   // Subjects state
   const [subjects, setSubjects] = useState<Subject[]>(() => {
     const saved = localStorage.getItem('studypilot_subjects');
@@ -391,6 +543,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { ...sub, units: updatedUnits };
       });
     });
+
+    if (currentUser) {
+      fetch('/api/progress?action=topic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ subjectId, unitId, topicId, status: newStatus })
+      })
+        .then(res => res.json())
+        .then(json => {
+          if (json.summary) setStudentProgress(json.summary);
+          if (json.subjectProgress) setSubjectProgress(json.subjectProgress);
+        })
+        .catch(err => {
+          console.warn('Failed to sync topic status to server:', err);
+        });
+    }
   };
 
   // Toggle Bookmark
@@ -513,6 +682,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteRevisionTask,
         selectedQuestionForEvaluation,
         setSelectedQuestionForEvaluation,
+        studentProgress,
+        subjectProgress,
+        recentActivity,
+        isProgressLoading,
+        refreshProgress,
+        recordQuizAttempt,
+        recordAnswerEvaluation,
         uploadedDocuments,
         addUploadedDocument,
         deleteUploadedDocument,

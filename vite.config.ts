@@ -5,6 +5,7 @@ import evaluateHandler from './api/evaluate';
 import quizHandler from './api/quiz';
 import authHandler from './api/auth';
 import healthHandler from './api/health';
+import progressHandler from './api/progress';
 
 function apiDevMiddleware(): Plugin {
   return {
@@ -101,6 +102,17 @@ function apiDevMiddleware(): Plugin {
 
         if (url.startsWith('/api/health')) {
           await healthHandler(req, createVercelRes(res));
+          return;
+        }
+
+        if (url.startsWith('/api/progress')) {
+          if (req.method === 'POST') {
+            const body = await readBody();
+            req.body = body;
+          } else {
+            req.body = {};
+          }
+          await progressHandler(req, createVercelRes(res));
           return;
         }
 

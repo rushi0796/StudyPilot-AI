@@ -13,6 +13,14 @@
       "destination": "/api/auth"
     },
     {
+      "source": "/api/progress/:path*",
+      "destination": "/api/progress?action=:path*"
+    },
+    {
+      "source": "/api/progress",
+      "destination": "/api/progress"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },
