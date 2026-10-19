@@ -15,9 +15,7 @@ import {
   generateOAuthState,
   createOAuthStateCookie,
   getOAuthStateFromRequest,
-  toSafeUser
-} from '../api/_lib/authUtils.ts';
-import { 
+  toSafeUser,
   _resetMemoryDb, 
   getDatabaseStatus, 
   getDatabaseConnectionString, 
@@ -26,20 +24,16 @@ import {
   DatabaseConfigurationError,
   insertUser,
   findUserByGoogleId,
-  linkGoogleAccount
-} from '../api/_lib/db.ts';
-import {
+  linkGoogleAccount,
   getGoogleOAuthConfig,
   processGoogleStart,
-  processGoogleCallback
-} from '../api/_lib/googleAuth.ts';
-import healthHandler from '../api/health.ts';
-import { 
+  processGoogleCallback,
   processSignup, 
   processLogin, 
   processGetCurrentUser, 
   processLogout 
 } from '../api/auth.ts';
+import healthHandler from '../api/health.ts';
 
 console.log('\n======================================================');
 console.log('STUDYPILOT AI - AUTHENTICATION & SESSION TEST SUITE');

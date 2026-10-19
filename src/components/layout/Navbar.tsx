@@ -277,7 +277,7 @@ export const Navbar: React.FC = () => {
                 {currentUser?.avatarUrl ? (
                   <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                 ) : (
-                  getInitials(currentUser ? currentUser.name : studentProfile.name)
+                  getInitials(currentUser ? currentUser.name : 'Guest Student')
                 )}
                 {currentUser && (
                   <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white" title="Account active" />
@@ -285,13 +285,13 @@ export const Navbar: React.FC = () => {
               </div>
               <div className="text-left hidden lg:block">
                 <p className="text-xs font-bold text-charcoal-900 leading-tight">
-                  {formatDisplayName(currentUser ? currentUser.name : studentProfile.name)}
+                  {currentUser ? formatDisplayName(currentUser.name) : 'Guest Student'}
                 </p>
                 <p className="text-[10px] text-charcoal-400 leading-tight flex items-center gap-1">
                   <span>{currentUser ? currentUser.semester : studentProfile.semester}</span>
                   <span>•</span>
-                  <span className={currentUser ? 'text-forest-700 font-semibold' : 'text-charcoal-400'}>
-                    {currentUser ? 'Logged In' : 'Guest'}
+                  <span className={currentUser ? 'text-forest-700 font-semibold' : 'text-amber-700 font-semibold'}>
+                    {currentUser ? 'Logged In' : 'Guest Mode'}
                   </span>
                 </p>
               </div>
@@ -306,13 +306,13 @@ export const Navbar: React.FC = () => {
                     {currentUser?.avatarUrl ? (
                       <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                     ) : (
-                      getInitials(currentUser ? currentUser.name : studentProfile.name)
+                      getInitials(currentUser ? currentUser.name : 'Guest Student')
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <p className="text-xs font-bold text-charcoal-900 truncate">
-                        {currentUser ? currentUser.name : (studentProfile.name || 'Student')}
+                        {currentUser ? currentUser.name : 'Guest Student'}
                       </p>
                       {currentUser ? (
                         <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-forest-100 text-forest-800 border border-forest-200">
@@ -320,12 +320,12 @@ export const Navbar: React.FC = () => {
                         </span>
                       ) : (
                         <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                          Guest
+                          Guest Mode
                         </span>
                       )}
                     </div>
                     <p className="text-[11px] text-charcoal-400 truncate">
-                      {currentUser ? currentUser.email : studentProfile.university}
+                      {currentUser ? currentUser.email : 'Explore as guest or sign in below'}
                     </p>
                     <p className="text-[10px] text-forest-700 mt-0.5 font-semibold truncate">
                       {currentUser ? `${currentUser.branch} (${currentUser.year})` : `${studentProfile.branch} (${studentProfile.year})`}

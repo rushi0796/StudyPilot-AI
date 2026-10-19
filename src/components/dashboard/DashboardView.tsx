@@ -19,6 +19,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 
 export const DashboardView: React.FC = () => {
   const { 
@@ -32,6 +33,7 @@ export const DashboardView: React.FC = () => {
     uploadedDocuments
   } = useApp();
 
+  const { currentUser, openAuthModal } = useAuth();
   const [showVisionFramework, setShowVisionFramework] = useState(false);
 
   const pendingRevisions = revisionTasks.filter(r => !r.completed);
@@ -46,20 +48,41 @@ export const DashboardView: React.FC = () => {
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-forest-50 text-forest-700 border border-forest-200">
                 <GraduationCap className="w-3.5 h-3.5" />
-                {studentProfile.university} • {studentProfile.semester}
+                {currentUser ? currentUser.university : studentProfile.university} • {currentUser ? currentUser.semester : studentProfile.semester}
               </span>
+              {currentUser ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Authenticated Student
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                  Guest Mode
+                </span>
+              )}
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
                 <Flame className="w-3.5 h-3.5 text-amber-600" />
                 4-Day Study Streak
               </span>
             </div>
 
-            <h1 className="text-2xl lg:text-3xl font-black text-charcoal-900 tracking-tight">
-              Welcome back, <span className="text-forest-600">{studentProfile.name}</span>!
-            </h1>
+            {currentUser ? (
+              <h1 className="text-2xl lg:text-3xl font-black text-charcoal-900 tracking-tight">
+                Welcome back, <span className="text-forest-600">{currentUser.name}</span>!
+              </h1>
+            ) : (
+              <div className="space-y-1">
+                <h1 className="text-2xl lg:text-3xl font-black text-charcoal-900 tracking-tight">
+                  Welcome to <span className="text-forest-600">StudyPilot AI</span>!
+                </h1>
+                <p className="text-xs text-amber-800 font-medium">
+                  Exploring in Guest Mode. <button onClick={() => openAuthModal('signin')} className="font-bold underline text-forest-700 hover:text-forest-900 cursor-pointer">Sign in</button> or <button onClick={() => openAuthModal('signup')} className="font-bold underline text-forest-700 hover:text-forest-900 cursor-pointer">create an account</button> to sync your syllabus progress.
+                </p>
+              </div>
+            )}
             
             <p className="text-xs sm:text-sm text-charcoal-700 leading-relaxed">
-              Your AI study assistant has prepared today’s syllabus goals for <strong className="text-charcoal-900">{studentProfile.branch}</strong>. You have 2 weak topics recommended for revision before upcoming tests.
+              Your AI study assistant has prepared today’s syllabus goals for <strong className="text-charcoal-900">{currentUser ? currentUser.branch : studentProfile.branch}</strong>. You have 2 weak topics recommended for revision before upcoming tests.
             </p>
           </div>
 

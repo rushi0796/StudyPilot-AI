@@ -56,7 +56,7 @@ export const DEFAULT_NEW_STUDENT_PROFILE = {
 };
 
 export const INITIAL_STUDENT_PROFILE = {
-  name: "Aken Rushikesh Gopal",
+  name: "Guest Student",
   university: "Sanjay Ghodawat University",
   course: "B.Tech (Four-Year Degree)",
   branch: "Artificial Intelligence & Machine Learning",

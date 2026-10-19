@@ -6,7 +6,7 @@ import {
   checkDatabaseTables, 
   ensureDatabaseSchema, 
   queryNeon 
-} from '../api/_lib/db.ts';
+} from '../api/auth.ts';
 
 console.log('\n======================================================');
 console.log('STUDYPILOT AI - NEON POSTGRESQL VERIFICATION & MIGRATION');
