@@ -1,4 +1,4 @@
-import { processGoogleStart } from '../../googleAuth.ts';
+import { processGoogleStart } from '../googleAuth.ts';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
