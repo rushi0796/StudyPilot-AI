@@ -80,10 +80,10 @@ export const MyFilesView: React.FC = () => {
       return;
     }
 
-    const validExtensions = ['pdf', 'docx', 'txt', 'md'];
+    const validExtensions = ['pdf', 'docx', 'txt', 'md', 'png', 'jpg', 'jpeg'];
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
     if (!validExtensions.includes(ext)) {
-      setUploadError(`Unsupported format (.${ext}). Please upload a PDF, DOCX, TXT, or Markdown (.md) document.`);
+      setUploadError(`Unsupported format (.${ext}). Please upload a PDF, DOCX, TXT, MD, or Image (.png, .jpg) document.`);
       return;
     }
 
@@ -182,7 +182,7 @@ export const MyFilesView: React.FC = () => {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,.docx,.txt,.md"
+          accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg"
           className="hidden"
           onChange={handleFileChange}
         />
@@ -208,14 +208,15 @@ export const MyFilesView: React.FC = () => {
             Drag and drop study materials here, or <span className="text-forest-600 underline">browse files</span>
           </p>
           <p className="text-xs text-charcoal-400 mt-1">
-            Supports PDF, DOCX, TXT, and Markdown files up to 20MB. Automatically chunked & indexed for semantic retrieval.
+            Supports PDF (including scanned documents & OMR sheets), DOCX, TXT, and Markdown files up to 20MB. Automatically scanned & indexed for semantic retrieval.
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-2 pt-1 text-[11px] text-charcoal-400">
-          <span className="px-2 py-0.5 rounded-md bg-academic-bg border border-[#E5E0D5] font-mono">.PDF</span>
+          <span className="px-2 py-0.5 rounded-md bg-academic-bg border border-[#E5E0D5] font-mono">.PDF (Digital & Scanned)</span>
           <span className="px-2 py-0.5 rounded-md bg-academic-bg border border-[#E5E0D5] font-mono">.DOCX</span>
           <span className="px-2 py-0.5 rounded-md bg-academic-bg border border-[#E5E0D5] font-mono">.TXT</span>
           <span className="px-2 py-0.5 rounded-md bg-academic-bg border border-[#E5E0D5] font-mono">.MD</span>
+          <span className="px-2 py-0.5 rounded-md bg-academic-bg border border-[#E5E0D5] font-mono">.PNG / .JPG</span>
         </div>
       </div>
 

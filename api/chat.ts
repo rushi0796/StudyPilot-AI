@@ -232,15 +232,16 @@ Core Capabilities & Operating Principles:
 
   const rawHistory = payload.history || [];
   for (const item of rawHistory) {
-    if (!item.content || !item.content.trim()) continue;
+    const itemContent = item.content || (item as any).text;
+    if (!itemContent || !itemContent.trim()) continue;
     const role: 'user' | 'model' = (item.role === 'assistant' || item.role === 'model') ? 'model' : 'user';
 
     if (contents.length > 0 && contents[contents.length - 1].role === role) {
-      contents[contents.length - 1].parts[0].text += `\n\n${item.content.trim()}`;
+      contents[contents.length - 1].parts[0].text += `\n\n${itemContent.trim()}`;
     } else {
       contents.push({
         role,
-        parts: [{ text: item.content.trim() }]
+        parts: [{ text: itemContent.trim() }]
       });
     }
   }
@@ -324,12 +325,9 @@ Core Capabilities & Operating Principles:
             details: errData.error
           };
 
-          // If quota exceeded (429), model not found (404), or server error (500/503), try next model
-          if (response.status === 429 || response.status === 404 || response.status === 503 || response.status === 500) {
-            console.warn(`Model ${modelToAttempt} failed with HTTP ${response.status}. Trying next candidate model...`);
-            continue;
-          }
-          break;
+          // If candidate model fails with any HTTP error (429 quota, 404 missing, 400 bad config, 500/503 server error), try next candidate model
+          console.warn(`Model ${modelToAttempt} failed with HTTP ${response.status}. Trying next candidate model...`);
+          continue;
         }
 
         data = await response.json();
@@ -509,6 +507,128 @@ ${outputText}`,
   }
 }
 
+export async function processOcrRequest(payload: {
+  image: string;
+  mimeType?: string;
+  filename?: string;
+  pageNumber?: number;
+}) {
+  const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim();
+  if (!apiKey) {
+    return {
+      error: {
+        message: 'GEMINI_API_KEY is not configured on the server.',
+        code: 'MISSING_API_KEY',
+        status: 401
+      }
+    };
+  }
+
+  const rawImage = (payload.image || '').trim();
+  if (!rawImage) {
+    return {
+      error: {
+        message: 'Image data is required for OCR extraction.',
+        code: 'INVALID_REQUEST',
+        status: 400
+      }
+    };
+  }
+
+  // Strip data URL scheme prefix if present
+  const base64Data = rawImage.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
+  const mimeType = payload.mimeType || 'image/jpeg';
+
+  const candidateModels = [
+    'gemini-3.8-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-2.5-flash'
+  ];
+
+  const ocrPrompt = `You are an expert academic document Optical Character Recognition (OCR) engine.
+Analyze this scanned study document page (File: "${payload.filename || 'Scanned Document'}", Page ${payload.pageNumber || 1}) and extract all text, questions, options, headings, numbers, tables, marks, and student notes.
+Instructions:
+1. Extract and transcribe all legible content faithfully and accurately.
+2. If this is an exam question paper or OMR answer sheet, transcribe all question items, choices, candidate/roll details, instructions, and filled responses systematically.
+3. Organize tables and sections using clean, structured markdown.
+4. Output ONLY the extracted document text. Do NOT include conversational greetings or conversational commentary.`;
+
+  const requestBody = {
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { text: ocrPrompt },
+          {
+            inlineData: {
+              mimeType,
+              data: base64Data
+            }
+          }
+        ]
+      }
+    ],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 4096
+    }
+  };
+
+  let lastErrorData: any = null;
+  let data: any = null;
+  let activeModel = 'gemini-3.8-flash';
+
+  for (const modelToAttempt of candidateModels) {
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToAttempt}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    try {
+      const response = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        lastErrorData = {
+          status: response.status,
+          message: errData.error?.message || `HTTP ${response.status} from Gemini API (${modelToAttempt})`
+        };
+        console.warn(`OCR model ${modelToAttempt} failed with HTTP ${response.status}. Trying next...`);
+        continue;
+      }
+
+      data = await response.json();
+      activeModel = modelToAttempt;
+      break;
+    } catch (fetchErr: any) {
+      lastErrorData = {
+        status: 500,
+        message: fetchErr?.message || `Network error contacting Gemini API for ${modelToAttempt}`
+      };
+      continue;
+    }
+  }
+
+  if (!data) {
+    return {
+      error: {
+        message: `OCR extraction failed: ${lastErrorData?.message || 'All candidate AI models were unreachable.'}`,
+        code: 'OCR_FAILED',
+        status: lastErrorData?.status || 500
+      }
+    };
+  }
+
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const extractedText = parts.find((p: any) => typeof p.text === 'string')?.text || '';
+
+  return {
+    text: extractedText.trim(),
+    model: activeModel,
+    pageNumber: payload.pageNumber || 1
+  };
+}
+
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -523,7 +643,7 @@ export default async function handler(req: any, res: any) {
       status: 'active',
       service: 'StudyPilot AI Chat Service',
       hasApiKey: Boolean((process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim()),
-      model: 'gemini-2.5-flash'
+      model: 'gemini-3.8-flash'
     });
   }
 
@@ -547,6 +667,15 @@ export default async function handler(req: any, res: any) {
       }
     } else if (!body) {
       body = {};
+    }
+
+    // Support OCR extraction requests for scanned documents & OMR sheets
+    if (body.action === 'ocr' || body.image) {
+      const ocrResult = await processOcrRequest(body);
+      if ('error' in ocrResult) {
+        return res.status(ocrResult.error.status || 500).json(ocrResult);
+      }
+      return res.status(200).json(ocrResult);
     }
 
     const result = await processChatRequest(body);

@@ -537,7 +537,16 @@ export class VoiceAssistantController {
 
       utterance.onend = () => {
         chunkIndex++;
-        playNextChunk();
+        if (chunkIndex < chunks.length) {
+          // Sensible 280ms pause between sentences for clear, articulate speech
+          setTimeout(() => {
+            if (this.synthesisState === 'speaking') {
+              playNextChunk();
+            }
+          }, 280);
+        } else {
+          playNextChunk();
+        }
       };
 
       utterance.onerror = (e) => {

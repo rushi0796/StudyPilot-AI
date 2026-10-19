@@ -250,14 +250,14 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
       setVoiceNotice(null);
     }
 
-    // If assistant was speaking, abort speech immediately
-    if (speechService.isSpeaking()) {
+    // If assistant was speaking, abort speech immediately and restart listening in new language
+    if (speechService.isSpeaking() || callStateRef.current === 'speaking') {
       speechService.stopSpeaking();
+      isProcessingRef.current = false;
       setCurrentAssistantSpeech('');
-    }
-
-    // If currently in listening state, smoothly restart recognition with the new language locale
-    if (callStateRef.current === 'listening') {
+      setCallState('listening');
+      startListeningLoop(newLang);
+    } else if (callStateRef.current === 'listening') {
       startListeningLoop(newLang);
     }
   };
@@ -395,7 +395,7 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
      AI PROCESSING & SPEAKING
      ========================================================================== */
 
-  const handleStudentFinishedSpeaking = async (spokenText: string) => {
+  const handleStudentFinishedSpeaking = async (spokenText: string, isRetry?: boolean) => {
     const trimmed = (spokenText || '').trim();
     if (trimmed.length < 2) return;
     if (isProcessingRef.current) return;
@@ -417,14 +417,16 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
     setInterimTranscript(trimmed);
     setCallError(null);
 
-    // Record turn in history
-    const userTurn: CallTurn = {
-      id: `turn_${Date.now()}_u`,
-      sender: 'user',
-      text: trimmed,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-    setCallHistory(prev => [...prev, userTurn]);
+    // Record turn in history (only if this is not a retry)
+    if (!isRetry) {
+      const userTurn: CallTurn = {
+        id: `turn_${Date.now()}_u`,
+        sender: 'user',
+        text: trimmed,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setCallHistory(prev => [...prev, userTurn]);
+    }
 
     try {
       // Call server-side Gemini API with voiceMode: true and active language
@@ -504,39 +506,40 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
       console.error('Voice AI tutor error:', err);
       isProcessingRef.current = false;
 
-      const realErrorMsg = err?.message || 'Could not reach StudyPilot API. Please try asking again.';
+      const rawMsg = err?.message || 'Could not reach StudyPilot API.';
+      let friendlyMsg = rawMsg;
+      if (err?.code === 'RATE_LIMIT_EXCEEDED' || rawMsg.includes('429') || rawMsg.includes('quota')) {
+        friendlyMsg = 'AI model rate limit reached. Please tap Retry in a few seconds.';
+      } else if (err?.code === 'MISSING_API_KEY') {
+        friendlyMsg = 'Server API key is missing. Check your server configuration.';
+      } else if (rawMsg.includes('Failed to fetch') || rawMsg.includes('NetworkError') || rawMsg.includes('network')) {
+        friendlyMsg = 'Network connection to StudyPilot server interrupted. Please tap Retry.';
+      }
+
       setCallError({
-        message: realErrorMsg,
+        message: friendlyMsg,
         failedQuery: trimmed
       });
 
-      // Spoken polite retry notice in the selected language
-      let spokenNotice = 'I had trouble connecting. Could you please say that again?';
-      if (selectedLanguageRef.current === 'hi') {
-        spokenNotice = 'कनेक्ट करने में थोड़ी समस्या हुई। कृपया फिर से पूछें।';
-      } else if (selectedLanguageRef.current === 'mr') {
-        spokenNotice = 'कनेक्ट करताना अडचण आली. कृपया पुन्हा विचारून बघा.';
-      } else if (selectedLanguageRef.current === 'te') {
-        spokenNotice = 'కనెక్ట్ చేయడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ అడగండి.';
-      }
+      // CRITICAL: Never present a temporary API error as the assistant's actual answer
+      setCurrentAssistantSpeech('');
 
-      setCurrentAssistantSpeech(spokenNotice);
-      setCallState('speaking');
-
-      speechService.speak({
-        text: spokenNotice,
-        language: selectedLanguageRef.current,
-        rate: 0.88,
-        onEnd: () => {
-          setCurrentAssistantSpeech('');
-          startListeningLoop();
-        },
-        onError: () => {
-          setCurrentAssistantSpeech('');
+      // Keep conversation alive: resume listening so the student can speak again or click Retry
+      setCallState('listening');
+      if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = setTimeout(() => {
+        if (callStateRef.current === 'listening' && !isProcessingRef.current) {
           startListeningLoop();
         }
-      });
+      }, 400);
     }
+  };
+
+  const handleRetry = () => {
+    if (!callError?.failedQuery) return;
+    const queryToRetry = callError.failedQuery;
+    setCallError(null);
+    handleStudentFinishedSpeaking(queryToRetry, true);
   };
 
   /* ==========================================================================
@@ -719,7 +722,7 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
                 <div className="p-2.5 rounded-xl bg-red-950/70 border border-red-500/40 text-red-200 text-xs flex items-center justify-between gap-2 max-w-sm mx-auto">
                   <span className="truncate">{callError.message}</span>
                   <button
-                    onClick={() => handleStudentFinishedSpeaking(callError.failedQuery)}
+                    onClick={handleRetry}
                     className="px-2.5 py-1 rounded-lg bg-red-700 hover:bg-red-600 text-white font-bold text-[11px] whitespace-nowrap cursor-pointer transition-colors"
                   >
                     Retry
