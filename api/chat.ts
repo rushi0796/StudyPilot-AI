@@ -215,6 +215,15 @@ Core Capabilities & Operating Principles:
     systemInstruction += `\nCurrent Academic Context: Subject: "${payload.studyContext.subject || 'General'}", Focus Area: "${payload.studyContext.topic || 'General'}". (Always prioritize the user's exact query).`;
   }
 
+  if (payload.voiceMode) {
+    systemInstruction += `\n6. Real-Time Voice Call Assistant Guidelines:
+   - You are speaking aloud in a real-time conversational voice call with the student.
+   - Keep answers conversational, crisp, direct, and concise (typically 2 to 4 spoken sentences).
+   - DO NOT output complex markdown tables, raw HTML, emojis, or heavy bullet point lists that sound unnatural when spoken by text-to-speech.
+   - Speak naturally with friendly, encouraging, academic warmth.
+   - If explaining a concept, explain it clearly and intuitively.`;
+  }
+
   const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text?: string; functionCall?: any; functionResponse?: any }> }> = [];
 
   const rawHistory = payload.history || [];

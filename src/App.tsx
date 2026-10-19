@@ -25,12 +25,15 @@ import { SettingsView } from './components/settings/SettingsView';
 import { Menu } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import { StudyPilotLoader } from './components/common/StudyPilotLoader';
+import { FloatingVoiceButton } from './components/voice/FloatingVoiceButton';
+import { VoiceCallModal } from './components/voice/VoiceCallModal';
 
 const AppContent: React.FC = () => {
   const { activeView } = useApp();
   const { isLoading, bypassLoading } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [voiceCallOpen, setVoiceCallOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -99,6 +102,10 @@ const AppContent: React.FC = () => {
 
       {/* University & Team Codex Footer */}
       <Footer />
+
+      {/* Real-time AI Voice Call Launcher & Modal */}
+      <FloatingVoiceButton onClick={() => setVoiceCallOpen(true)} isActive={voiceCallOpen} />
+      <VoiceCallModal isOpen={voiceCallOpen} onClose={() => setVoiceCallOpen(false)} />
 
       {/* Modals */}
       <GlobalSearchModal />

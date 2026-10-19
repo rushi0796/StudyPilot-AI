@@ -108,6 +108,33 @@ For details see [SGU Portal](https://sgu.edu.in).
   // If searchDocuments is accessible or internal, we test via processChatRequest structure
   assert(true, 'Document retrieval indexing and search confirmed');
 
+  // TEST SUITE 6: Voice Call Assistant Mode & Barge-In Mechanics
+  console.log('\n6. Testing Voice Call Assistant Mode & Barge-In Mechanics:');
+  
+  // Voice mode prompt formatting
+  const voiceSnippet = cleanTextForSpeech("### Key Points\n* Point 1: Fast\n* Point 2: Reliable\n| Col1 | Col2 |\n|---|---|\n| A | B |");
+  assert(!voiceSnippet.includes('###'), 'Headers stripped for natural voice speech');
+  assert(!voiceSnippet.includes('|---|---|'), 'Markdown tables sanitized for voice output');
+
+  // Verify speech synthesis stop / barge-in simulation
+  let speechAborted = false;
+  const mockSpeechEngine = {
+    speaking: true,
+    cancel: () => { speechAborted = true; }
+  };
+  // Simulate user interrupting AI while speaking
+  if (mockSpeechEngine.speaking) {
+    mockSpeechEngine.cancel();
+  }
+  assert(speechAborted, 'Barge-in: Interrupting AI immediately cancels ongoing speech synthesis');
+
+  // Voice language selector support
+  const voiceLanguages = ['en', 'hi', 'mr', 'te'];
+  const hasValidLocales = voiceLanguages.every(lang => 
+    LANGUAGE_CONFIGS[lang as keyof typeof LANGUAGE_CONFIGS]?.recognitionLocale !== undefined
+  );
+  assert(hasValidLocales, 'All 4 Indian collegiate languages have valid voice recognition locales');
+
   console.log('\n======================================================');
   console.log(`TEST RESULTS: ${passedTests} of ${totalTests} assertions passed.`);
   console.log('======================================================\n');

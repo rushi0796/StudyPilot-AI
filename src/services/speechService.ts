@@ -127,6 +127,12 @@ export function cleanTextForSpeech(text: string): string {
     .replace(/\[Source:[^\]]+\]/gi, '')
     // Remove markdown links [text](url) -> text
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Remove markdown table divider lines like |---|---| or |:---:|
+    .replace(/\|[\s-:]+\|/g, ' ')
+    // Replace pipe characters in tables
+    .replace(/\|/g, ' ')
+    // Remove HTML tags
+    .replace(/<[^>]+>/g, ' ')
     // Remove headers, bold, italics, strikethroughs, blockquotes
     .replace(/^[#>\s*+-]+/gm, ' ')
     .replace(/[*_~`]/g, ' ')
@@ -503,6 +509,10 @@ export class VoiceAssistantController {
    */
   public isSpeaking(): boolean {
     return isSpeechSynthesisSupported() && window.speechSynthesis.speaking && !window.speechSynthesis.paused;
+  }
+
+  public isCurrentlySpeaking(): boolean {
+    return this.isSpeaking();
   }
 
   /**
