@@ -128,13 +128,12 @@ export async function queryNeon<T = any>(queryText: string, params: any[] = []):
     throw new DatabaseConfigurationError();
   }
   const sql = neon(connectionString);
-  if (params && params.length > 0) {
-    const result = await (sql as any)(queryText, params);
-    return (result as T[]) || [];
-  } else {
-    const result = await (sql as any)(queryText);
+  if (typeof (sql as any).query === 'function') {
+    const result = await (sql as any).query(queryText, params && params.length > 0 ? params : []);
     return (result as T[]) || [];
   }
+  const result = await (sql as any)(queryText, params);
+  return (result as T[]) || [];
 }
 
 export async function ensureDatabaseSchema(): Promise<void> {
