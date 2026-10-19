@@ -14,13 +14,18 @@ import {
   ExternalLink,
   Cpu,
   Eye,
-  EyeOff
+  EyeOff,
+  ShieldCheck,
+  LogOut,
+  LogIn
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { Language } from '../../types';
 import { testGeminiConnection } from '../../services/aiProvider';
 
 export const SettingsView: React.FC = () => {
+  const { currentUser, openAuthModal, logout } = useAuth();
   const { 
     studentProfile, 
     updateStudentProfile, 
@@ -161,6 +166,70 @@ export const SettingsView: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Account Status & Persistence Card */}
+      {currentUser ? (
+        <div className="p-5 rounded-2xl bg-white border border-[#E5E0D5] shadow-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-forest-100 text-forest-700 border border-forest-200 flex items-center justify-center flex-shrink-0 shadow-sm">
+              <ShieldCheck className="w-6 h-6 text-forest-600" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-charcoal-900">
+                  {currentUser.name}
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-forest-100 text-forest-800 border border-forest-200">
+                  Verified Student
+                </span>
+              </div>
+              <p className="text-xs text-charcoal-500 font-medium">
+                {currentUser.email} • {currentUser.university}
+              </p>
+              <p className="text-[11px] text-forest-700 font-semibold mt-0.5">
+                {currentUser.branch} ({currentUser.semester})
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={logout}
+            className="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap self-stretch sm:self-auto justify-center"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
+          </button>
+        </div>
+      ) : (
+        <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-50/90 to-sage-50/80 border border-amber-200/90 shadow-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 border border-amber-300 flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0">
+              <AlertCircle className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold text-amber-900 uppercase tracking-wider">
+                  Guest Student Mode
+                </h3>
+                <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-amber-200/60 text-amber-900 border border-amber-300">
+                  Browser-Only
+                </span>
+              </div>
+              <p className="text-xs text-charcoal-700 mt-0.5 leading-relaxed">
+                You are currently using local storage. Sign in with your university account to secure your profile and persist your study records across devices.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => openAuthModal('signin')}
+            className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-forest-600 hover:bg-forest-700 shadow-sm shadow-forest-600/20 flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap self-stretch sm:self-auto justify-center"
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>Sign In / Register</span>
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSaveProfile} className="space-y-6">
         

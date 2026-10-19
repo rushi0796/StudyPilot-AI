@@ -9,9 +9,12 @@ import {
   ChevronDown, 
   X, 
   Volume2,
-  FolderOpen
+  FolderOpen,
+  LogIn,
+  LogOut
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { Language } from '../../types';
 import { getInitials, formatDisplayName } from '../../utils/profileUtils';
 
@@ -31,6 +34,8 @@ export const Navbar: React.FC = () => {
     stopSpeech,
     uploadedDocuments
   } = useApp();
+
+  const { currentUser, openAuthModal, logout, isLoading: authLoading } = useAuth();
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -76,7 +81,8 @@ export const Navbar: React.FC = () => {
             onClick={() => setActiveView('dashboard')}
             className="flex items-center gap-2.5 group text-left focus:outline-none"
           >
-            <div className="w-10 h-10 rounded-xl bg-forest-500 text-white flex items-center justify-center shadow-card group-hover:bg-forest-600 transition-all duration-200">
+            <div className="w-10 h-10 rounded-xl bg-forest-500 text-white flex items-center justify-center shadow-card group-hover:bg-forest-600 transition-all duration-200 overflow-hidden">
+              <img src="/logo.png" alt="StudyPilot AI" className="w-full h-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
               <Sparkles className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -249,47 +255,111 @@ export const Navbar: React.FC = () => {
             )}
           </div>
 
+          {/* Direct Sign In CTA Button (when unauthenticated) */}
+          {!currentUser && !authLoading && (
+            <button
+              onClick={() => openAuthModal('signin')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-forest-600 hover:bg-forest-700 text-white font-bold text-xs shadow-sm shadow-forest-600/20 transition-all cursor-pointer"
+              title="Sign in to your persistent student account"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Sign In</span>
+            </button>
+          )}
+
           {/* Student Profile Dropdown */}
           <div className="relative" ref={profileRef}>
             <button
               onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-              className="flex items-center gap-2 p-1 pl-1.5 pr-2 rounded-xl bg-academic-bg hover:bg-sage-100 border border-[#E5E0D5] transition-colors group"
+              className="flex items-center gap-2 p-1 pl-1.5 pr-2 rounded-xl bg-academic-bg hover:bg-sage-100 border border-[#E5E0D5] transition-colors group cursor-pointer"
             >
-              <div className="w-7 h-7 rounded-lg bg-forest-500 text-white flex items-center justify-center text-xs font-bold shadow-subtle">
-                {getInitials(studentProfile.name)}
+              <div className="w-7 h-7 rounded-lg bg-forest-500 text-white flex items-center justify-center text-xs font-bold shadow-subtle relative overflow-hidden">
+                {currentUser?.avatarUrl ? (
+                  <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                ) : (
+                  getInitials(currentUser ? currentUser.name : studentProfile.name)
+                )}
+                {currentUser && (
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white" title="Account active" />
+                )}
               </div>
               <div className="text-left hidden lg:block">
                 <p className="text-xs font-bold text-charcoal-900 leading-tight">
-                  {formatDisplayName(studentProfile.name)}
+                  {formatDisplayName(currentUser ? currentUser.name : studentProfile.name)}
                 </p>
-                <p className="text-[10px] text-charcoal-400 leading-tight">
-                  {studentProfile.semester} • AI
+                <p className="text-[10px] text-charcoal-400 leading-tight flex items-center gap-1">
+                  <span>{currentUser ? currentUser.semester : studentProfile.semester}</span>
+                  <span>•</span>
+                  <span className={currentUser ? 'text-forest-700 font-semibold' : 'text-charcoal-400'}>
+                    {currentUser ? 'Logged In' : 'Guest'}
+                  </span>
                 </p>
               </div>
               <ChevronDown className="w-3.5 h-3.5 text-charcoal-400 group-hover:text-charcoal-700" />
             </button>
 
             {profileDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white border border-[#E5E0D5] shadow-elevated p-2 z-50">
+              <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white border border-[#E5E0D5] shadow-elevated p-2 z-50 animate-in fade-in duration-150">
+                {/* Account Header */}
                 <div className="p-2.5 border-b border-[#E5E0D5] flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-forest-500 text-white flex items-center justify-center text-sm font-bold shadow-subtle flex-shrink-0">
-                    {getInitials(studentProfile.name)}
+                  <div className="w-9 h-9 rounded-xl bg-forest-500 text-white flex items-center justify-center text-sm font-bold shadow-subtle flex-shrink-0 overflow-hidden">
+                    {currentUser?.avatarUrl ? (
+                      <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                    ) : (
+                      getInitials(currentUser ? currentUser.name : studentProfile.name)
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-charcoal-900 truncate">{studentProfile.name || 'Student'}</p>
-                    <p className="text-[11px] text-charcoal-400 truncate">{studentProfile.university}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-bold text-charcoal-900 truncate">
+                        {currentUser ? currentUser.name : (studentProfile.name || 'Student')}
+                      </p>
+                      {currentUser ? (
+                        <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-forest-100 text-forest-800 border border-forest-200">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                          Guest
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-charcoal-400 truncate">
+                      {currentUser ? currentUser.email : studentProfile.university}
+                    </p>
                     <p className="text-[10px] text-forest-700 mt-0.5 font-semibold truncate">
-                      {studentProfile.branch} ({studentProfile.year})
+                      {currentUser ? `${currentUser.branch} (${currentUser.year})` : `${studentProfile.branch} (${studentProfile.year})`}
                     </p>
                   </div>
                 </div>
+
+                {/* Guest Callout (if not logged in) */}
+                {!currentUser && (
+                  <div className="my-2 p-2.5 rounded-xl bg-sage-50 border border-sage-200 text-xs">
+                    <p className="text-[11px] font-bold text-forest-800">Save Your Progress</p>
+                    <p className="text-[10px] text-charcoal-600 mt-0.5 leading-snug">
+                      Sign in with your student credentials to persist study history and evaluations across devices.
+                    </p>
+                    <button
+                      onClick={() => {
+                        openAuthModal('signin');
+                        setProfileDropdownOpen(false);
+                      }}
+                      className="mt-2 w-full py-1.5 rounded-lg text-xs font-bold bg-forest-600 hover:bg-forest-700 text-white flex items-center justify-center gap-1 shadow-sm cursor-pointer"
+                    >
+                      <LogIn className="w-3.5 h-3.5" />
+                      <span>Sign In / Create Account</span>
+                    </button>
+                  </div>
+                )}
+
                 <div className="py-1 space-y-0.5 text-xs">
                   <button
                     onClick={() => {
                       setActiveView('settings');
                       setProfileDropdownOpen(false);
                     }}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-charcoal-700 hover:bg-sage-50 hover:text-charcoal-900"
+                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-charcoal-700 hover:bg-sage-50 hover:text-charcoal-900 cursor-pointer"
                   >
                     <User className="w-3.5 h-3.5 text-forest-600" />
                     <span>Academic Profile & Settings</span>
@@ -299,7 +369,7 @@ export const Navbar: React.FC = () => {
                       setTeamModalOpen(true);
                       setProfileDropdownOpen(false);
                     }}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-charcoal-700 hover:bg-sage-50 hover:text-charcoal-900"
+                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-charcoal-700 hover:bg-sage-50 hover:text-charcoal-900 cursor-pointer"
                   >
                     <ShieldCheck className="w-3.5 h-3.5 text-forest-600" />
                     <span>About Team Codex (SGU Project)</span>
@@ -309,11 +379,27 @@ export const Navbar: React.FC = () => {
                       setOnboardingOpen(true);
                       setProfileDropdownOpen(false);
                     }}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-charcoal-700 hover:bg-sage-50 hover:text-charcoal-900"
+                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-charcoal-700 hover:bg-sage-50 hover:text-charcoal-900 cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-gold-500" />
                     <span>Restart Onboarding Tour</span>
                   </button>
+
+                  {/* Log Out button if authenticated */}
+                  {currentUser && (
+                    <div className="pt-1 mt-1 border-t border-[#E5E0D5]">
+                      <button
+                        onClick={async () => {
+                          await logout();
+                          setProfileDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-rose-600 hover:bg-rose-50 hover:text-rose-700 font-semibold cursor-pointer"
+                      >
+                        <LogOut className="w-3.5 h-3.5 text-rose-500" />
+                        <span>Sign Out of Account</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

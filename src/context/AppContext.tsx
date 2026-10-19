@@ -24,6 +24,7 @@ import {
   deletePersistentDocument 
 } from '../services/storageService';
 import { speechService } from '../services/speechService';
+import { useAuth } from './AuthContext';
 
 export type ActiveView = 
   | 'dashboard' 
@@ -130,6 +131,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return true; // Brand new session without a valid completed profile triggers onboarding modal
   });
+
+  // Access AuthContext if available to synchronize authenticated student
+  let authContext: any = null;
+  try {
+    authContext = useAuth();
+  } catch {
+    // Graceful fallback if rendered without AuthProvider
+  }
+  const currentUser = authContext?.currentUser;
+
+  useEffect(() => {
+    if (currentUser) {
+      setStudentProfile(prev => ({
+        ...prev,
+        name: currentUser.name || prev.name,
+        university: currentUser.university || prev.university,
+        course: currentUser.course || prev.course,
+        branch: currentUser.branch || prev.branch,
+        year: currentUser.year || prev.year,
+        semester: currentUser.semester || prev.semester,
+        preferredLanguage: (currentUser.preferredLanguage as any) || prev.preferredLanguage,
+        onboardingCompleted: true
+      }));
+      setOnboardingOpen(false);
+    }
+  }, [currentUser]);
 
   // Gemini API key state
   const [geminiApiKey, setGeminiApiKeyState] = useState<string>(() => {

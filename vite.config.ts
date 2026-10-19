@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import { processChatRequest } from './api/chat';
 import evaluateHandler from './api/evaluate';
 import quizHandler from './api/quiz';
+import authHandler from './api/auth';
+import healthHandler from './api/health';
 
 function apiDevMiddleware(): Plugin {
   return {
@@ -26,7 +28,13 @@ function apiDevMiddleware(): Plugin {
 
         // Mock response helper for Vercel-like handlers
         const createVercelRes = (res: any) => ({
-          setHeader: (name: string, val: string) => res.setHeader(name, val),
+          setHeader: (name: string, val: string | string[]) => res.setHeader(name, val),
+          redirect: (statusOrUrl: number | string, optUrl?: string) => {
+            const status = typeof statusOrUrl === 'number' ? statusOrUrl : 302;
+            const targetUrl = typeof statusOrUrl === 'string' ? statusOrUrl : (optUrl || '/');
+            res.writeHead(status, { Location: targetUrl });
+            res.end();
+          },
           status: (code: number) => ({
             json: (data: any) => {
               res.setHeader('Content-Type', 'application/json');
@@ -80,14 +88,19 @@ function apiDevMiddleware(): Plugin {
           return;
         }
 
+        if (url.startsWith('/api/auth')) {
+          if (req.method === 'POST') {
+            const body = await readBody();
+            req.body = body;
+          } else {
+            req.body = {};
+          }
+          await authHandler(req, createVercelRes(res));
+          return;
+        }
+
         if (url.startsWith('/api/health')) {
-          res.setHeader('Content-Type', 'application/json');
-          res.statusCode = 200;
-          res.end(JSON.stringify({
-            status: 'ok',
-            hasApiKey: Boolean((process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim()),
-            model: 'gemini-2.5-flash'
-          }));
+          await healthHandler(req, createVercelRes(res));
           return;
         }
 

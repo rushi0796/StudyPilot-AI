@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { AuthProvider } from './context/AuthContext';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
 import { AcademicHeaderBanner } from './components/layout/AcademicHeaderBanner';
@@ -7,6 +8,7 @@ import { Footer } from './components/layout/Footer';
 import { GlobalSearchModal } from './components/layout/GlobalSearchModal';
 import { TeamCodexModal } from './components/layout/TeamCodexModal';
 import { OnboardingModal } from './components/onboarding/OnboardingModal';
+import { AuthModal } from './components/auth/AuthModal';
 
 // Views
 import { DashboardView } from './components/dashboard/DashboardView';
@@ -21,11 +23,24 @@ import { RevisionPlannerView } from './components/planner/RevisionPlannerView';
 import { LearningProgressView } from './components/progress/LearningProgressView';
 import { SettingsView } from './components/settings/SettingsView';
 import { Menu } from 'lucide-react';
+import { useAuth } from './context/AuthContext';
+import { StudyPilotLoader } from './components/common/StudyPilotLoader';
 
 const AppContent: React.FC = () => {
   const { activeView } = useApp();
+  const { isLoading, bypassLoading } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  if (isLoading) {
+    return (
+      <StudyPilotLoader
+        message="Preparing your learning workspace…"
+        subMessage="Sanjay Ghodawat University • Team Codex"
+        onBypass={bypassLoading}
+      />
+    );
+  }
 
   const renderActiveView = () => {
     switch (activeView) {
@@ -89,6 +104,7 @@ const AppContent: React.FC = () => {
       <GlobalSearchModal />
       <TeamCodexModal />
       <OnboardingModal />
+      <AuthModal />
 
     </div>
   );
@@ -96,8 +112,10 @@ const AppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </AuthProvider>
   );
 }

@@ -164,4 +164,6 @@ env/
 # Scratch & Output
 scratch/
 brag-output/
+*.pptx
+*.ps1
 
