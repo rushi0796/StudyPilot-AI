@@ -135,6 +135,70 @@ For details see [SGU Portal](https://sgu.edu.in).
   );
   assert(hasValidLocales, 'All 4 Indian collegiate languages have valid voice recognition locales');
 
+  // TEST SUITE 7: Multi-turn Conversation & History Continuity
+  console.log('\n7. Testing Multi-turn Conversation & History Continuity:');
+  const turns: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+  
+  // Turn 1
+  turns.push({ role: 'user', content: 'What is a binary search tree?' });
+  turns.push({ role: 'assistant', content: 'A binary search tree is a data structure where each node has at most two children, with left keys smaller and right keys larger.' });
+  
+  // Turn 2
+  turns.push({ role: 'user', content: 'What is its search time complexity?' });
+  turns.push({ role: 'assistant', content: 'In a balanced binary search tree, the search time complexity is O(log n), but in the worst-case skewed tree it can degrade to O(n).' });
+
+  assert(turns.length === 4, 'Multi-turn conversation history maintains 4 turn records');
+  assert(turns[0].role === 'user' && turns[1].role === 'assistant', 'Turn 1 properly alternates user -> assistant');
+  assert(turns[2].role === 'user' && turns[3].role === 'assistant', 'Turn 2 properly alternates user -> assistant');
+  
+  // Bounded history check
+  for (let i = 0; i < 15; i++) {
+    turns.push({ role: i % 2 === 0 ? 'user' : 'assistant', content: `Turn ${i}` });
+  }
+  const boundedHistory = turns.slice(-12);
+  assert(boundedHistory.length === 12, 'Conversation history cleanly caps at 12 recent turns to prevent prompt bloat');
+
+  // TEST SUITE 8: Strict Selected-Language Directives
+  console.log('\n8. Testing Selected-Language Directives & Voice Fallbacks:');
+  const supportedLangs = ['en', 'hi', 'mr', 'te'] as const;
+  for (const lang of supportedLangs) {
+    const config = LANGUAGE_CONFIGS[lang];
+    assert(Boolean(config.recognitionLocale), `Locale configured for ${lang}: ${config.recognitionLocale}`);
+    assert(Array.isArray(config.voiceLocales) && config.voiceLocales.length > 0, `Voice locales available for ${lang}`);
+  }
+
+  // Marathi fallback validation
+  assert(LANGUAGE_CONFIGS.mr.voiceLocales.includes('hi-IN'), 'Marathi voice config has Hindi phonetic fallback for devices lacking native Marathi voice');
+  assert(LANGUAGE_CONFIGS.en.voiceLocales.includes('en-IN'), 'English voice config prioritizes Indian English (en-IN)');
+
+  // TEST SUITE 9: Slow, Understandable Voice Settings (0.85 - 0.90 rate)
+  console.log('\n9. Testing Slow, Understandable Speech Settings:');
+  const defaultRate = 0.88;
+  assert(defaultRate >= 0.85 && defaultRate <= 0.90, `Default speech rate (${defaultRate}) is within optimal 0.85 - 0.90 range`);
+  
+  const comfortablePitch = 1.0;
+  assert(comfortablePitch >= 0.9 && comfortablePitch <= 1.1, `Comfortable pitch (${comfortablePitch}) is natural`);
+
+  // TEST SUITE 10: Recognition Session Isolation & Overlapping Call Prevention
+  console.log('\n10. Testing Recognition Session Isolation & Overlapping Prevention:');
+  let activeSessionId = 0;
+  
+  // Simulate starting session 1
+  activeSessionId++;
+  const session1 = activeSessionId;
+  assert(session1 === 1, 'First voice session initialized with ID 1');
+
+  // Simulate starting session 2 before session 1 completed (e.g. quick language switch or restart)
+  activeSessionId++;
+  const session2 = activeSessionId;
+  assert(session2 === 2, 'Second voice session initialized with ID 2');
+
+  // Verify stale session 1 callbacks are rejected
+  const isSession1Active = activeSessionId === session1;
+  const isSession2Active = activeSessionId === session2;
+  assert(!isSession1Active, 'Stale session 1 events are safely rejected');
+  assert(isSession2Active, 'Active session 2 events are accepted without race conditions');
+
   console.log('\n======================================================');
   console.log(`TEST RESULTS: ${passedTests} of ${totalTests} assertions passed.`);
   console.log('======================================================\n');

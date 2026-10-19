@@ -25,6 +25,7 @@ import {
   isSpeechRecognitionSupported, 
   isSpeechSynthesisSupported, 
   cleanTextForSpeech, 
+  ensureVoicesLoaded,
   LANGUAGE_CONFIGS,
   SpeechRecognitionErrorDetails 
 } from '../../services/speechService';
@@ -60,6 +61,8 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
   // Call status
   const [callState, setCallState] = useState<VoiceCallState>('idle');
   const [errorMessage, setErrorMessage] = useState<{ title: string; description: string } | null>(null);
+  const [callError, setCallError] = useState<{ message: string; failedQuery: string } | null>(null);
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
 
   // Audio & Mic controls
   const [isMicMuted, setIsMicMuted] = useState(false);
@@ -81,9 +84,21 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
   // Gemini conversation history across turns
   const geminiHistoryRef = useRef<ChatHistoryTurn[]>([]);
 
-  // Silence auto-submit timer
+  // Silence auto-submit timer & lifecycle synchronization refs
   const silenceTimerRef = useRef<any>(null);
+  const restartTimerRef = useRef<any>(null);
   const latestTranscriptRef = useRef('');
+  const isProcessingRef = useRef(false);
+  const callStateRef = useRef<VoiceCallState>(callState);
+  const selectedLanguageRef = useRef<Language>(selectedLanguage);
+
+  useEffect(() => {
+    callStateRef.current = callState;
+  }, [callState]);
+
+  useEffect(() => {
+    selectedLanguageRef.current = selectedLanguage;
+  }, [selectedLanguage]);
 
   // Audio wave animation amplitude simulation
   const [audioLevel, setAudioLevel] = useState(0.2);
@@ -101,6 +116,16 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
       setCallHistory([]);
       geminiHistoryRef.current = [];
       setErrorMessage(null);
+      setCallError(null);
+      setVoiceNotice(null);
+      isProcessingRef.current = false;
+    } else {
+      ensureVoicesLoaded().then(() => {
+        const status = speechService.getVoiceStatus(selectedLanguage);
+        if (!status.isExactMatch && status.fallbackNotice) {
+          setVoiceNotice(status.fallbackNotice);
+        }
+      });
     }
   }, [isOpen]);
 
@@ -154,7 +179,11 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
      START & END CALL LIFECYCLE
      ========================================================================== */
 
-  const handleStartCall = () => {
+  /* ==========================================================================
+     START & END CALL LIFECYCLE
+     ========================================================================== */
+
+  const handleStartCall = async () => {
     if (!hasSpeechSupport) {
       setCallState('error');
       setErrorMessage({
@@ -169,17 +198,30 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
     setCallHistory([]);
     geminiHistoryRef.current = [];
     setErrorMessage(null);
+    setCallError(null);
+    isProcessingRef.current = false;
+
+    await ensureVoicesLoaded();
+    const status = speechService.getVoiceStatus(selectedLanguage);
+    if (!status.isExactMatch && status.fallbackNotice) {
+      setVoiceNotice(status.fallbackNotice);
+    }
 
     // Short simulated handshake before listening
     setTimeout(() => {
       startListeningLoop();
-    }, 600);
+    }, 400);
   };
 
   const endCallCleanup = () => {
+    isProcessingRef.current = false;
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
+    }
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
     }
     speechService.stopListening();
     speechService.stopSpeaking();
@@ -191,28 +233,75 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
   };
 
   /* ==========================================================================
+     IN-CALL LANGUAGE SWITCHER
+     ========================================================================== */
+
+  const handleLanguageChange = (newLang: Language) => {
+    if (newLang === selectedLanguage) return;
+    setSelectedLanguage(newLang);
+    selectedLanguageRef.current = newLang;
+
+    // Check voice support on device
+    const status = speechService.getVoiceStatus(newLang);
+    if (!status.isExactMatch && status.fallbackNotice) {
+      setVoiceNotice(status.fallbackNotice);
+      setTimeout(() => setVoiceNotice(null), 5000);
+    } else {
+      setVoiceNotice(null);
+    }
+
+    // If assistant was speaking, abort speech immediately
+    if (speechService.isSpeaking()) {
+      speechService.stopSpeaking();
+      setCurrentAssistantSpeech('');
+    }
+
+    // If currently in listening state, smoothly restart recognition with the new language locale
+    if (callStateRef.current === 'listening') {
+      startListeningLoop(newLang);
+    }
+  };
+
+  /* ==========================================================================
      CONTINUOUS TWO-WAY VOICE LOOP
      ========================================================================== */
 
-  const startListeningLoop = () => {
+  const startListeningLoop = (overrideLang?: Language) => {
     if (isMicMuted) {
       setCallState('muted');
       return;
     }
 
-    endCallCleanup();
+    if (isProcessingRef.current) {
+      // Do not restart recognition while thinking or speaking
+      return;
+    }
+
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
+
     setCallState('listening');
     setInterimTranscript('');
     latestTranscriptRef.current = '';
 
+    const langToUse = overrideLang || selectedLanguageRef.current;
+
     speechService.startListening({
-      language: selectedLanguage,
+      language: langToUse,
       onStateChange: (state, err) => {
         if (state === 'error' && err) {
           handleSpeechError(err);
         }
       },
       onTranscript: (interim, final) => {
+        if (isProcessingRef.current) return;
+
         const fullTranscript = (final + ' ' + interim).trim();
         setInterimTranscript(fullTranscript);
         latestTranscriptRef.current = fullTranscript;
@@ -231,7 +320,9 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
 
         if (fullTranscript.length > 2) {
           silenceTimerRef.current = setTimeout(() => {
-            handleStudentFinishedSpeaking(fullTranscript);
+            if (!isProcessingRef.current && callStateRef.current === 'listening') {
+              handleStudentFinishedSpeaking(fullTranscript);
+            }
           }, 1400);
         }
       },
@@ -239,16 +330,27 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
         handleSpeechError(err);
       },
       onEnd: (final) => {
-        // If recognition automatically ends on silence and we have transcript, process it
-        const pending = final.trim() || latestTranscriptRef.current.trim();
-        if (pending.length > 2 && callState === 'listening') {
+        if (isProcessingRef.current) return;
+
+        const pending = (final || '').trim() || latestTranscriptRef.current.trim();
+        if (pending.length > 2 && callStateRef.current === 'listening') {
           handleStudentFinishedSpeaking(pending);
+        } else if (callStateRef.current === 'listening' && !isMicMuted) {
+          // If no speech was spoken and recognition simply timed out on silence, cleanly resume listening
+          if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+          restartTimerRef.current = setTimeout(() => {
+            if (callStateRef.current === 'listening' && !isProcessingRef.current) {
+              startListeningLoop(langToUse);
+            }
+          }, 200);
         }
       }
     });
   };
 
   const handleSpeechError = (err: SpeechRecognitionErrorDetails) => {
+    if (isProcessingRef.current) return;
+
     if (err.code === 'not-allowed' || err.code === 'permission-denied') {
       endCallCleanup();
       setCallState('error');
@@ -258,9 +360,12 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
       });
     } else if (err.code === 'no-speech') {
       // Normal silence timeout; resume listening if still in active call
-      if (callState === 'listening') {
-        startListeningLoop();
-      }
+      if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = setTimeout(() => {
+        if (callStateRef.current === 'listening' && !isProcessingRef.current && !isMicMuted) {
+          startListeningLoop();
+        }
+      }, 200);
     } else if (err.code === 'audio-capture') {
       endCallCleanup();
       setCallState('error');
@@ -268,11 +373,21 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
         title: 'Microphone Input Not Found',
         description: 'No microphone was detected on this device. Please connect an audio input device.'
       });
-    } else if (err.code !== 'aborted') {
-      // Other recoverable error: restart listening
-      setTimeout(() => {
-        if (callState === 'listening') startListeningLoop();
+    } else if (err.code === 'network') {
+      // Temporary network hitch in browser speech recognition; schedule restart
+      if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = setTimeout(() => {
+        if (callStateRef.current === 'listening' && !isProcessingRef.current) {
+          startListeningLoop();
+        }
       }, 500);
+    } else if (err.code !== 'aborted') {
+      if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = setTimeout(() => {
+        if (callStateRef.current === 'listening' && !isProcessingRef.current) {
+          startListeningLoop();
+        }
+      }, 350);
     }
   };
 
@@ -281,30 +396,44 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
      ========================================================================== */
 
   const handleStudentFinishedSpeaking = async (spokenText: string) => {
-    if (!spokenText.trim() || spokenText.trim().length < 2) return;
+    const trimmed = (spokenText || '').trim();
+    if (trimmed.length < 2) return;
+    if (isProcessingRef.current) return;
+
+    isProcessingRef.current = true;
+
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
 
     // Stop listening while thinking
     speechService.stopListening();
     setCallState('thinking');
-    setInterimTranscript(spokenText);
+    setInterimTranscript(trimmed);
+    setCallError(null);
 
     // Record turn in history
     const userTurn: CallTurn = {
       id: `turn_${Date.now()}_u`,
       sender: 'user',
-      text: spokenText,
+      text: trimmed,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
     setCallHistory(prev => [...prev, userTurn]);
 
     try {
-      // Call server-side Gemini API with voiceMode: true
+      // Call server-side Gemini API with voiceMode: true and active language
       const response = await askGeminiTutor({
-        query: spokenText,
+        query: trimmed,
         history: geminiHistoryRef.current,
         subject: activeSubject?.name || 'Computer Science & AI',
         topic: activeSubject?.units?.[0]?.topics?.[0]?.title || 'General Academic Study',
-        language: selectedLanguage,
+        language: selectedLanguageRef.current,
         difficulty: 'standard',
         voiceMode: true,
         academicProfile: {
@@ -318,9 +447,12 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
       const replyText = response.content || 'I heard your question. Let me know how else I can help.';
       const cleanSpokenReply = cleanTextForSpeech(replyText);
 
-      // Record in Gemini multi-turn history
-      geminiHistoryRef.current.push({ role: 'user', content: spokenText });
+      // Record in Gemini multi-turn history (keep last 12 turns max to prevent prompt explosion)
+      geminiHistoryRef.current.push({ role: 'user', content: trimmed });
       geminiHistoryRef.current.push({ role: 'assistant', content: cleanSpokenReply });
+      if (geminiHistoryRef.current.length > 12) {
+        geminiHistoryRef.current = geminiHistoryRef.current.slice(-12);
+      }
 
       // Add assistant turn to UI history
       const assistantTurn: CallTurn = {
@@ -339,37 +471,68 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
       if (!isSpeakerMuted) {
         speechService.speak({
           text: cleanSpokenReply,
-          language: selectedLanguage,
+          language: selectedLanguageRef.current,
+          rate: 0.88, // Slightly slower, clear conversational pace (0.85-0.90)
+          pitch: 1.0,
           onStart: () => {
             setCallState('speaking');
           },
+          onChunkStart: (chunkText) => {
+            setCurrentAssistantSpeech(chunkText);
+          },
           onEnd: () => {
-            // After speaking finishes, smoothly resume listening for the student's next question
+            isProcessingRef.current = false;
             setCurrentAssistantSpeech('');
             startListeningLoop();
           },
           onError: () => {
+            isProcessingRef.current = false;
             setCurrentAssistantSpeech('');
             startListeningLoop();
           }
         });
       } else {
-        // If speaker muted, show reply for 3s then resume listening
+        // If speaker muted, show reply for 3.5s then resume listening
         setTimeout(() => {
+          isProcessingRef.current = false;
           setCurrentAssistantSpeech('');
           startListeningLoop();
-        }, 3000);
+        }, 3500);
       }
 
     } catch (err: any) {
-      console.warn('Voice AI tutor error:', err);
-      const fallbackReply = 'I encountered a connection issue. Please ask again.';
-      setCurrentAssistantSpeech(fallbackReply);
+      console.error('Voice AI tutor error:', err);
+      isProcessingRef.current = false;
+
+      const realErrorMsg = err?.message || 'Could not reach StudyPilot API. Please try asking again.';
+      setCallError({
+        message: realErrorMsg,
+        failedQuery: trimmed
+      });
+
+      // Spoken polite retry notice in the selected language
+      let spokenNotice = 'I had trouble connecting. Could you please say that again?';
+      if (selectedLanguageRef.current === 'hi') {
+        spokenNotice = 'कनेक्ट करने में थोड़ी समस्या हुई। कृपया फिर से पूछें।';
+      } else if (selectedLanguageRef.current === 'mr') {
+        spokenNotice = 'कनेक्ट करताना अडचण आली. कृपया पुन्हा विचारून बघा.';
+      } else if (selectedLanguageRef.current === 'te') {
+        spokenNotice = 'కనెక్ట్ చేయడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ అడగండి.';
+      }
+
+      setCurrentAssistantSpeech(spokenNotice);
       setCallState('speaking');
+
       speechService.speak({
-        text: fallbackReply,
-        language: selectedLanguage,
+        text: spokenNotice,
+        language: selectedLanguageRef.current,
+        rate: 0.88,
         onEnd: () => {
+          setCurrentAssistantSpeech('');
+          startListeningLoop();
+        },
+        onError: () => {
+          setCurrentAssistantSpeech('');
           startListeningLoop();
         }
       });
@@ -381,6 +544,7 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
      ========================================================================== */
 
   const handleInterrupt = () => {
+    isProcessingRef.current = false;
     speechService.stopSpeaking();
     setCurrentAssistantSpeech('');
     startListeningLoop();
@@ -522,8 +686,47 @@ export const VoiceCallModal: React.FC<VoiceCallModalProps> = ({ isOpen, onClose 
 
           {/* B. ACTIVE CALL (Connecting / Listening / Thinking / Speaking / Muted) */}
           {(callState === 'connecting' || callState === 'listening' || callState === 'thinking' || callState === 'speaking' || callState === 'muted') && (
-            <div className="w-full space-y-6">
+            <div className="w-full space-y-4">
               
+              {/* In-Call Active Language Switcher */}
+              <div className="flex flex-wrap items-center justify-center gap-1.5 py-1 px-2.5 bg-black/40 rounded-full border border-emerald-500/20 text-[11px] max-w-fit mx-auto">
+                <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-emerald-300 font-semibold text-[10px] uppercase tracking-wider mr-1">Voice Lang:</span>
+                {(['en', 'hi', 'mr', 'te'] as Language[]).map(lang => (
+                  <button
+                    key={lang}
+                    onClick={() => handleLanguageChange(lang)}
+                    className={`px-2.5 py-0.5 rounded-full font-semibold transition-all cursor-pointer ${
+                      selectedLanguage === lang
+                        ? 'bg-emerald-600 text-white shadow-xs border border-emerald-400/50'
+                        : 'text-emerald-200/70 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    {LANGUAGE_CONFIGS[lang].label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Informative Voice Compatibility Notice */}
+              {voiceNotice && (
+                <div className="text-[11px] px-3.5 py-1 bg-amber-500/20 border border-amber-400/30 rounded-full text-amber-200 animate-in fade-in max-w-sm mx-auto">
+                  ℹ️ {voiceNotice}
+                </div>
+              )}
+
+              {/* Actionable Error & Retry Banner */}
+              {callError && (
+                <div className="p-2.5 rounded-xl bg-red-950/70 border border-red-500/40 text-red-200 text-xs flex items-center justify-between gap-2 max-w-sm mx-auto">
+                  <span className="truncate">{callError.message}</span>
+                  <button
+                    onClick={() => handleStudentFinishedSpeaking(callError.failedQuery)}
+                    className="px-2.5 py-1 rounded-lg bg-red-700 hover:bg-red-600 text-white font-bold text-[11px] whitespace-nowrap cursor-pointer transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+
               {/* Dynamic Status Pill */}
               <div className="flex items-center justify-center">
                 <span className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${

@@ -50,7 +50,10 @@ export interface StartListeningOptions {
 export interface SpeakOptions {
   text: string;
   language: Language;
+  rate?: number; // Slower, understandable pace: default 0.88 (0.85 - 0.9)
+  pitch?: number; // Comfortable pitch: default 1.0
   onStart?: () => void;
+  onChunkStart?: (chunkText: string, chunkIndex: number, totalChunks: number) => void;
   onEnd?: () => void;
   onError?: (err: any) => void;
 }
@@ -176,10 +179,59 @@ export function splitIntoSpeechChunks(text: string): string[] {
   return chunks.length > 0 ? chunks : [clean];
 }
 
+let voicesLoadedPromise: Promise<SpeechSynthesisVoice[]> | null = null;
+
+/**
+ * Asynchronously wait for browser speech synthesis voices to finish loading.
+ */
+export function ensureVoicesLoaded(): Promise<SpeechSynthesisVoice[]> {
+  if (typeof window === 'undefined' || !isSpeechSynthesisSupported()) {
+    return Promise.resolve([]);
+  }
+
+  const existing = window.speechSynthesis.getVoices();
+  if (existing && existing.length > 0) {
+    return Promise.resolve(existing);
+  }
+
+  if (voicesLoadedPromise) {
+    return voicesLoadedPromise;
+  }
+
+  voicesLoadedPromise = new Promise((resolve) => {
+    let resolved = false;
+
+    const onVoicesChanged = () => {
+      const loaded = window.speechSynthesis.getVoices();
+      if (loaded && loaded.length > 0 && !resolved) {
+        resolved = true;
+        window.speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
+        resolve(loaded);
+      }
+    };
+
+    window.speechSynthesis.addEventListener('voiceschanged', onVoicesChanged);
+
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        window.speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
+        resolve(window.speechSynthesis.getVoices() || []);
+      }
+    }, 1500);
+  });
+
+  return voicesLoadedPromise;
+}
+
 /**
  * Get the best matching available system voice for the selected language
  */
-export function getBestVoice(language: Language): { voice: SpeechSynthesisVoice | null; isExactMatch: boolean } {
+export function getBestVoice(language: Language): { 
+  voice: SpeechSynthesisVoice | null; 
+  isExactMatch: boolean;
+  fallbackNotice?: string;
+} {
   if (!isSpeechSynthesisSupported()) return { voice: null, isExactMatch: false };
 
   const voices = window.speechSynthesis.getVoices();
@@ -195,21 +247,31 @@ export function getBestVoice(language: Language): { voice: SpeechSynthesisVoice 
 
   // 2. Try prefix match for target locales
   for (const loc of targetLocales) {
-    const prefix = loc.toLowerCase().split('-')[0];
+    const cleanLoc = loc.toLowerCase().replace('_', '-');
+    const prefix = cleanLoc.split('-')[0];
     const match = voices.find(v => v.lang && v.lang.toLowerCase().replace('_', '-').startsWith(prefix));
     if (match) {
-      const isExact = match.lang.toLowerCase().startsWith(primaryLocale);
-      return { voice: match, isExactMatch: isExact };
+      const isExact = match.lang.toLowerCase().replace('_', '-').startsWith(primaryLocale);
+      let fallbackNotice: string | undefined;
+      if (!isExact && language === 'mr') {
+        fallbackNotice = 'Native Marathi voice not detected; using Hindi phonetic voice.';
+      }
+      return { voice: match, isExactMatch: isExact, fallbackNotice };
     }
   }
 
   // 3. Fallback to default system voice
   const defaultVoice = voices.find(v => v.default) || voices[0];
-  return { voice: defaultVoice || null, isExactMatch: false };
+  let fallbackNotice: string | undefined;
+  if (language !== 'en') {
+    fallbackNotice = `Native ${config.label} voice not found on device; using default system voice.`;
+  }
+  return { voice: defaultVoice || null, isExactMatch: false, fallbackNotice };
 }
 
 // Global active controller references to prevent overlapping sessions
 let activeRecognitionInstance: IWindowSpeechRecognition | null = null;
+let activeSessionId = 0;
 let activeKeepAliveTimer: any = null;
 let activeUtteranceQueue: SpeechSynthesisUtterance[] = [];
 let currentSpeakingText: string | null = null;
@@ -222,6 +284,22 @@ export class VoiceAssistantController {
   private synthesisState: SpeechSynthesisState = 'idle';
   private accumulatedFinalTranscript: string = '';
   private currentLanguage: Language = 'en';
+
+  /**
+   * Get voice support status for a language
+   */
+  public getVoiceStatus(language: Language): { 
+    isExactMatch: boolean; 
+    fallbackNotice?: string; 
+    voiceName?: string 
+  } {
+    const res = getBestVoice(language);
+    return {
+      isExactMatch: res.isExactMatch,
+      fallbackNotice: res.fallbackNotice,
+      voiceName: res.voice?.name
+    };
+  }
 
   /**
    * Start speech recognition using browser Web Speech API
@@ -242,6 +320,9 @@ export class VoiceAssistantController {
     this.stopListening();
     this.stopSpeaking();
 
+    activeSessionId++;
+    const currentSession = activeSessionId;
+
     this.currentLanguage = options.language;
     this.accumulatedFinalTranscript = '';
     options.onStateChange('requesting_permission');
@@ -260,12 +341,14 @@ export class VoiceAssistantController {
       let isStarted = false;
 
       recognition.onstart = () => {
+        if (activeSessionId !== currentSession) return;
         isStarted = true;
         this.recognitionState = 'listening';
         options.onStateChange('listening');
       };
 
       recognition.onresult = (event: any) => {
+        if (activeSessionId !== currentSession) return;
         let interimTranscript = '';
         let currentFinalPart = '';
 
@@ -288,6 +371,7 @@ export class VoiceAssistantController {
       };
 
       recognition.onerror = (event: any) => {
+        if (activeSessionId !== currentSession) return;
         const errType = event.error;
         let details: SpeechRecognitionErrorDetails = {
           code: errType,
@@ -332,6 +416,7 @@ export class VoiceAssistantController {
       };
 
       recognition.onend = () => {
+        if (activeSessionId !== currentSession) return;
         if (this.recognitionState === 'listening') {
           this.recognitionState = 'idle';
           options.onStateChange('idle');
@@ -439,11 +524,15 @@ export class VoiceAssistantController {
         utterance.lang = config.recognitionLocale;
       }
 
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
+      utterance.rate = typeof options.rate === 'number' ? options.rate : 0.88;
+      utterance.pitch = typeof options.pitch === 'number' ? options.pitch : 1.0;
 
       if (chunkIndex === 0 && options.onStart) {
         utterance.onstart = () => options.onStart!();
+      }
+
+      if (options.onChunkStart) {
+        options.onChunkStart(chunkText, chunkIndex, chunks.length);
       }
 
       utterance.onend = () => {

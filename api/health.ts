@@ -101,7 +101,7 @@ export default async function handler(req: any, res: any) {
       service: 'StudyPilot AI Agent API',
       environment: process.env.NODE_ENV || 'development',
       hasApiKey: Boolean((process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim()),
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       database: {
         configured: dbHealth.configured,
         activeEnvVar: dbHealth.activeEnvVar,

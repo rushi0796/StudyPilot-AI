@@ -137,15 +137,19 @@ export async function processChatRequest(payload: ChatRequestPayload) {
     };
   }
 
-  const modelName = payload.model || 'gemini-2.5-flash';
+  const preferredModel = payload.model || 'gemini-3.8-flash';
 
-  const languageSpec = payload.language === 'hi'
-    ? 'The user prefers explanations in Hindi (हिंदी). Respond primarily in Hindi (or natural Hinglish where appropriate) unless writing code or mathematical equations.'
-    : payload.language === 'mr'
-    ? 'The user prefers explanations in Marathi (मराठी). Respond primarily in Marathi unless writing code or mathematical equations.'
-    : payload.language === 'te'
-    ? 'The user prefers explanations in Telugu (తెలుగు). Respond primarily in Telugu unless writing code or mathematical equations.'
-    : 'Respond in clear, natural English, or match the language/script the user spoke or typed in.';
+  const selectedLang = (payload.language || 'en').toLowerCase();
+  let languageStrictRule = '';
+  if (selectedLang === 'mr') {
+    languageStrictRule = 'CRITICAL LANGUAGE DIRECTIVE: You MUST answer EXCLUSIVELY in Marathi (मराठी). Even if the student speaks/types in English, asks technical questions, or mentions technical terms (like "database", "algorithm", "operating system"), provide your ENTIRE explanation in natural, fluent Marathi (देवनागरी). NEVER switch to English.';
+  } else if (selectedLang === 'hi') {
+    languageStrictRule = 'CRITICAL LANGUAGE DIRECTIVE: You MUST answer EXCLUSIVELY in Hindi (हिंदी). Even if the student uses English technical words or borrowed vocabulary, provide your ENTIRE explanation in clear, natural Hindi (देवनागरी). NEVER switch to English.';
+  } else if (selectedLang === 'te') {
+    languageStrictRule = 'CRITICAL LANGUAGE DIRECTIVE: You MUST answer EXCLUSIVELY in Telugu (తెలుగు). Even if the student uses English technical terms, provide your ENTIRE explanation in natural Telugu script. NEVER switch to English.';
+  } else {
+    languageStrictRule = 'CRITICAL LANGUAGE DIRECTIVE: You MUST answer EXCLUSIVELY in clear, articulate collegiate English. Even if the student uses Hindi/Marathi words or regional collegiate slang, answer in clear English.';
+  }
 
   // 1. Perform Document Retrieval if document chunks or active document grounding is provided
   let ragContext = '';
@@ -199,12 +203,11 @@ Core Capabilities & Operating Principles:
    - For definition questions (e.g., "What is artificial intelligence?"): give a precise, comprehensive, and engaging definition.
    - For ambiguous questions, ask a brief clarification instead of guessing.
 3. Multi-turn Follow-up Handling:
-   - When the user asks a follow-up (e.g., "Explain that with an example", "Make it simpler", "Explain it in Marathi"), look at the recent conversation history to know what "that" or "it" refers to and continue the explanation seamlessly.
+   - When the user asks a follow-up (e.g., "Explain that with an example", "Make it simpler"), look at the recent conversation history to know what "that" or "it" refers to and continue the explanation seamlessly.
    - If the user changes the subject to an unrelated topic, focus entirely on the new topic without letting previous context interfere.
-4. Language & Multilingual Support:
-   - Support English, Hindi (हिंदी), Marathi (मराठी), and Telugu (తెలుగు), as well as Hinglish/mixed inputs.
-   - Language guideline: ${languageSpec}
-   - If the user speaks or writes in Marathi, respond in natural Marathi. If they speak in Hindi, respond in Hindi.
+4. Language & Multilingual Directive:
+   - The user has chosen ${selectedLang.toUpperCase()} as their active study language.
+   - ${languageStrictRule}
 5. Uploaded Document Grounding:
    - When the user asks about their uploaded study documents or notes:
      * Base your answer strictly on the retrieved source excerpts and cite "[Source: <DocumentName>, <Page/Section>]".
@@ -218,6 +221,7 @@ Core Capabilities & Operating Principles:
   if (payload.voiceMode) {
     systemInstruction += `\n6. Real-Time Voice Call Assistant Guidelines:
    - You are speaking aloud in a real-time conversational voice call with the student.
+   - ${languageStrictRule}
    - Keep answers conversational, crisp, direct, and concise (typically 2 to 4 spoken sentences).
    - DO NOT output complex markdown tables, raw HTML, emojis, or heavy bullet point lists that sound unnatural when spoken by text-to-speech.
    - Speak naturally with friendly, encouraging, academic warmth.
@@ -278,8 +282,18 @@ Core Capabilities & Operating Principles:
   ];
 
   try {
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
-    
+    const candidateModels = [
+      preferredModel,
+      'gemini-3.8-flash',
+      'gemini-3.5-flash-lite',
+      'gemini-2.5-flash'
+    ].filter(Boolean) as string[];
+    const modelsToTry = Array.from(new Set(candidateModels));
+
+    let lastErrorData: any = null;
+    let data: any = null;
+    let activeModel = preferredModel;
+
     const requestBody: any = {
       contents,
       systemInstruction: {
@@ -292,26 +306,55 @@ Core Capabilities & Operating Principles:
       tools
     };
 
-    const response = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody)
-    });
+    for (const modelToAttempt of modelsToTry) {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToAttempt}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      
+      try {
+        const response = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      const msg = errData.error?.message || `HTTP ${response.status} from Gemini API`;
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          lastErrorData = {
+            status: response.status,
+            message: errData.error?.message || `HTTP ${response.status} from Gemini API (${modelToAttempt})`,
+            details: errData.error
+          };
+
+          // If quota exceeded (429), model not found (404), or server error (500/503), try next model
+          if (response.status === 429 || response.status === 404 || response.status === 503 || response.status === 500) {
+            console.warn(`Model ${modelToAttempt} failed with HTTP ${response.status}. Trying next candidate model...`);
+            continue;
+          }
+          break;
+        }
+
+        data = await response.json();
+        activeModel = modelToAttempt;
+        break;
+      } catch (fetchErr: any) {
+        lastErrorData = {
+          status: 500,
+          message: fetchErr?.message || `Network error contacting Gemini API for ${modelToAttempt}`
+        };
+        continue;
+      }
+    }
+
+    if (!data) {
       return {
         error: {
-          message: `Google Gemini error: ${msg}`,
-          code: 'GEMINI_ERROR',
-          status: response.status,
-          details: errData.error
+          message: `Google Gemini error: ${lastErrorData?.message || 'All candidate AI models were unreachable.'}`,
+          code: lastErrorData?.status === 429 ? 'RATE_LIMIT_EXCEEDED' : 'GEMINI_ERROR',
+          status: lastErrorData?.status || 500,
+          details: lastErrorData?.details
         }
       };
     }
 
-    const data = await response.json();
     const candidate = data.candidates?.[0]?.content;
     const parts = candidate?.parts || [];
 
@@ -349,7 +392,8 @@ Core Capabilities & Operating Principles:
         parts: toolParts
       });
 
-      const secondResponse = await fetch(geminiUrl, {
+      const secondGeminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const secondResponse = await fetch(secondGeminiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -369,7 +413,7 @@ Core Capabilities & Operating Principles:
         const secondText = secondData.candidates?.[0]?.content?.parts?.[0]?.text || '';
         return {
           text: secondText,
-          model: modelName,
+          model: activeModel,
           toolCallsExecuted: executedTools.length > 0 ? executedTools : undefined,
           citations: retrievedCitations.length > 0 ? Array.from(new Set(retrievedCitations)) : undefined
         };
@@ -400,7 +444,7 @@ Core Capabilities & Operating Principles:
           }
         ],
         systemInstruction: {
-          parts: [{ text: `You are StudyPilot AI, an intelligent academic assistant for ${targetUniversity} students. Answer the following question clearly and concisely using up-to-date information from the web. ${languageSpec}` }]
+          parts: [{ text: `You are StudyPilot AI, an intelligent academic assistant for ${targetUniversity} students. Answer the following question clearly and concisely using up-to-date information from the web. ${languageStrictRule}` }]
         },
         generationConfig: {
           temperature: 0.4,
@@ -410,8 +454,7 @@ Core Capabilities & Operating Principles:
       };
 
       try {
-        // Use gemini-2.5-flash for web search grounding
-        const webSearchModel = 'gemini-2.5-flash';
+        const webSearchModel = 'gemini-3.8-flash';
         const webSearchUrl = `https://generativelanguage.googleapis.com/v1beta/models/${webSearchModel}:generateContent?key=${encodeURIComponent(apiKey)}`;
         const webResp = await fetch(webSearchUrl, {
           method: 'POST',
@@ -428,7 +471,7 @@ Core Capabilities & Operating Principles:
 
 I searched the web and found the following answer:`,
               webSearchResult: webText,
-              model: modelName,
+              model: activeModel,
               isWebSearchFallback: true
             };
           }
@@ -444,14 +487,14 @@ I searched the web and found the following answer:`,
 Here is a general knowledge answer (not from your document):
 
 ${outputText}`,
-        model: modelName,
+        model: activeModel,
         isWebSearchFallback: true
       };
     }
 
     return {
       text: outputText,
-      model: modelName,
+      model: activeModel,
       citations: retrievedCitations.length > 0 ? Array.from(new Set(retrievedCitations)) : undefined
     };
 
