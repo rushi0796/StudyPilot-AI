@@ -11,6 +11,10 @@ import {
   searchDocuments, 
   type DocumentChunkContext 
 } from '../api/chat.ts';
+import { 
+  filterDocumentsForUser 
+} from '../src/services/storageService.ts';
+import type { UploadedDocument } from '../src/types/index.ts';
 
 let totalTests = 0;
 let passedTests = 0;
@@ -127,6 +131,61 @@ async function runProfileAndRagTests() {
   // Verify deduplication when duplicate chunks are passed
   const deduplicated = formatRetrievedContext([match3NF[0], match3NF[0]]);
   assert(deduplicated.citations.length === 1, 'Generates deduplicated citations array');
+
+  // TEST SUITE 7: Cross-Student Document Isolation & Privacy Guardrails
+  console.log('\n7. Testing Cross-Student Document Isolation & Privacy:');
+  const sharedDocs: UploadedDocument[] = [
+    {
+      id: 'doc_dbms_handout',
+      name: 'SGU_DBMS_Unit3_Normalization_Handout.pdf',
+      size: 10240,
+      type: 'pdf',
+      uploadedAt: 'Today',
+      text: 'Sample syllabus',
+      wordCount: 100,
+      chunks: [],
+      status: 'ready'
+    },
+    {
+      id: 'doc_student_alpha_private',
+      userId: 'usr_student_alpha_001',
+      name: 'Alpha_Confidential_Midterm_Prep.pdf',
+      size: 20480,
+      type: 'pdf',
+      uploadedAt: 'Today',
+      text: 'Alpha personal notes',
+      wordCount: 200,
+      chunks: [],
+      status: 'ready'
+    },
+    {
+      id: 'doc_student_beta_private',
+      userId: 'usr_student_beta_002',
+      name: 'Beta_Private_Project_Draft.docx',
+      size: 30720,
+      type: 'docx',
+      uploadedAt: 'Today',
+      text: 'Beta personal notes',
+      wordCount: 300,
+      chunks: [],
+      status: 'ready'
+    }
+  ];
+
+  const docsForAlpha = filterDocumentsForUser(sharedDocs, 'usr_student_alpha_001');
+  const docsForBeta = filterDocumentsForUser(sharedDocs, 'usr_student_beta_002');
+  const docsForGuest = filterDocumentsForUser(sharedDocs, undefined);
+
+  assert(docsForAlpha.some(d => d.id === 'doc_student_alpha_private'), 'User Alpha sees their own private document');
+  assert(docsForAlpha.some(d => d.id === 'doc_dbms_handout'), 'User Alpha sees the preloaded curriculum document');
+  assert(!docsForAlpha.some(d => d.id === 'doc_student_beta_private'), 'PRIVACY ENFORCED: User Alpha CANNOT see User Beta private document');
+
+  assert(docsForBeta.some(d => d.id === 'doc_student_beta_private'), 'User Beta sees their own private document');
+  assert(docsForBeta.some(d => d.id === 'doc_dbms_handout'), 'User Beta sees the preloaded curriculum document');
+  assert(!docsForBeta.some(d => d.id === 'doc_student_alpha_private'), 'PRIVACY ENFORCED: User Beta CANNOT see User Alpha private document');
+
+  assert(!docsForGuest.some(d => d.id === 'doc_student_alpha_private'), 'Guest user CANNOT see User Alpha private document');
+  assert(!docsForGuest.some(d => d.id === 'doc_student_beta_private'), 'Guest user CANNOT see User Beta private document');
 
   console.log('\n======================================================');
   console.log(`TEST RESULTS: ${passedTests} of ${totalTests} assertions passed.`);

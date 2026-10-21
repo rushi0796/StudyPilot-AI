@@ -57,6 +57,7 @@ export interface DocumentChunk {
 
 export interface UploadedDocument {
   id: string;
+  userId?: string;
   name: string;
   size: number;
   type: 'pdf' | 'docx' | 'txt' | 'md' | 'other';

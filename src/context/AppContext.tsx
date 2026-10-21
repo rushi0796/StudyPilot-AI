@@ -209,9 +209,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('studypilot_gemini_model', model);
   };
 
-  // Uploaded Documents state
+  // Uploaded Documents state with strict per-user scoping
   const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>(() => {
-    const saved = localStorage.getItem('studypilot_documents');
+    const key = currentUser?.id ? `studypilot_documents_${currentUser.id}` : 'studypilot_documents_guest';
+    const saved = localStorage.getItem(key);
     if (saved) {
       try { return JSON.parse(saved); } catch (e) { /* ignore */ }
     }
@@ -234,14 +235,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  // Initialize from persistent IndexedDB on component mount
+  // Reload isolated documents whenever authenticated user changes (login, logout, account switch)
   useEffect(() => {
     let isMounted = true;
-    loadPersistentDocuments()
+    loadPersistentDocuments(currentUser?.id)
       .then((docs) => {
         if (isMounted && docs && docs.length > 0) {
           setUploadedDocuments(docs);
-          setActiveDocumentId(prev => prev || docs[0]?.id);
+          setActiveDocumentId(prev => (docs.some(d => d.id === prev) ? prev : docs[0]?.id));
         }
       })
       .catch((err) => {
@@ -250,12 +251,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [currentUser?.id]);
 
   const addUploadedDocument = (doc: UploadedDocument) => {
-    setUploadedDocuments(prev => [doc, ...prev.filter(d => d.id !== doc.id)]);
+    const docWithUser: UploadedDocument = {
+      ...doc,
+      userId: currentUser?.id || 'guest'
+    };
+    setUploadedDocuments(prev => [docWithUser, ...prev.filter(d => d.id !== doc.id)]);
     setActiveDocumentId(doc.id);
-    savePersistentDocument(doc).catch(err => {
+    savePersistentDocument(docWithUser, currentUser?.id).catch(err => {
       console.warn('Could not save document to IndexedDB:', err);
     });
   };
@@ -265,7 +270,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (activeDocumentId === id) {
       setActiveDocumentId(undefined);
     }
-    deletePersistentDocument(id).catch(err => {
+    deletePersistentDocument(id, currentUser?.id).catch(err => {
       console.warn('Could not delete document from IndexedDB:', err);
     });
   };
@@ -470,19 +475,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     try {
-      localStorage.setItem('studypilot_documents', JSON.stringify(uploadedDocuments));
+      const key = currentUser?.id ? `studypilot_documents_${currentUser.id}` : 'studypilot_documents_guest';
+      localStorage.setItem(key, JSON.stringify(uploadedDocuments));
     } catch {
       // If full text exceeds 5MB localStorage quota, save metadata only as backup
       try {
+        const key = currentUser?.id ? `studypilot_documents_${currentUser.id}` : 'studypilot_documents_guest';
         const metadataOnly = uploadedDocuments.map(d => ({
           ...d,
           text: d.text.slice(0, 500) + '...',
           chunks: d.chunks.slice(0, 2)
         }));
-        localStorage.setItem('studypilot_documents', JSON.stringify(metadataOnly));
+        localStorage.setItem(key, JSON.stringify(metadataOnly));
       } catch {}
     }
-  }, [uploadedDocuments]);
+  }, [uploadedDocuments, currentUser?.id]);
 
   useEffect(() => {
     localStorage.setItem('studypilot_subjects', JSON.stringify(subjects));
