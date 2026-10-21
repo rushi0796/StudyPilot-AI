@@ -151,18 +151,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return DEFAULT_NEW_STUDENT_PROFILE;
   });
 
-  const [onboardingOpen, setOnboardingOpen] = useState<boolean>(() => {
-    const saved = localStorage.getItem('studypilot_student_profile');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (isProfileValid(parsed)) {
-          return false;
-        }
-      } catch (e) { /* ignore */ }
-    }
-    return true; // Brand new session without a valid completed profile triggers onboarding modal
-  });
+  const [onboardingOpen, setOnboardingOpen] = useState<boolean>(false);
 
   // Access AuthContext if available to synchronize authenticated student
   let authContext: any = null;
@@ -184,8 +173,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         year: currentUser.year || prev.year,
         semester: currentUser.semester || prev.semester,
         preferredLanguage: (currentUser.preferredLanguage as any) || prev.preferredLanguage,
-        onboardingCompleted: true
+        onboardingCompleted: Boolean(currentUser.onboardingCompleted)
       }));
+
+      // Open onboarding modal if and only if authenticated student has not yet completed onboarding
+      if (!currentUser.onboardingCompleted) {
+        setOnboardingOpen(true);
+      } else {
+        setOnboardingOpen(false);
+      }
+    } else {
       setOnboardingOpen(false);
     }
   }, [currentUser]);
@@ -211,8 +208,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Uploaded Documents state with strict per-user scoping
   const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>(() => {
-    const key = currentUser?.id ? `studypilot_documents_${currentUser.id}` : 'studypilot_documents_guest';
-    const saved = localStorage.getItem(key);
+    if (currentUser?.id) {
+      const key = `studypilot_documents_${currentUser.id}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+      }
+      return []; // Real users start with empty document list
+    }
+    const saved = localStorage.getItem('studypilot_documents_guest');
     if (saved) {
       try { return JSON.parse(saved); } catch (e) { /* ignore */ }
     }
@@ -220,7 +224,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [activeDocumentId, setActiveDocumentIdState] = useState<string | undefined>(() => {
-    return localStorage.getItem('studypilot_active_doc_id') || INITIAL_PRELOADED_DOCUMENTS[0]?.id;
+    return localStorage.getItem('studypilot_active_doc_id') || undefined;
   });
 
   const setActiveDocumentId = (idOrUpdater?: string | ((prev?: string) => string | undefined)) => {
@@ -240,9 +244,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let isMounted = true;
     loadPersistentDocuments(currentUser?.id)
       .then((docs) => {
-        if (isMounted && docs && docs.length > 0) {
-          setUploadedDocuments(docs);
-          setActiveDocumentId(prev => (docs.some(d => d.id === prev) ? prev : docs[0]?.id));
+        if (isMounted) {
+          if (docs && docs.length > 0) {
+            setUploadedDocuments(docs);
+            setActiveDocumentId(prev => (docs.some(d => d.id === prev) ? prev : docs[0]?.id));
+          } else {
+            if (currentUser?.id) {
+              setUploadedDocuments([]);
+              setActiveDocumentId(undefined);
+            } else {
+              setUploadedDocuments(INITIAL_PRELOADED_DOCUMENTS);
+              setActiveDocumentId(INITIAL_PRELOADED_DOCUMENTS[0]?.id);
+            }
+          }
         }
       })
       .catch((err) => {
@@ -428,30 +442,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Active question sent to Answer Evaluator
   const [selectedQuestionForEvaluation, setSelectedQuestionForEvaluation] = useState<QuestionItem | undefined>(undefined);
 
-  // Notifications
-  const [notifications, setNotifications] = useState([
-    {
-      id: 'n1',
-      title: 'Upcoming Assessment',
-      message: 'CS201: Database Management Systems Unit 3 practice quiz scheduled.',
-      time: '10 mins ago',
-      type: 'alert' as const
-    },
-    {
-      id: 'n2',
-      title: 'Weak Concept Flagged',
-      message: 'AI flagged BCNF Dependency Preservation for revision.',
-      time: '1 hour ago',
-      type: 'info' as const
-    },
-    {
-      id: 'n3',
-      title: 'Study Streak Active',
-      message: '4-day continuous study streak maintained! Keep it up for SGU Semester III exams.',
-      time: 'Yesterday',
-      type: 'success' as const
+  // Notifications with strict per-user isolation and demo labeling
+  const [notifications, setNotifications] = useState<Array<{ id: string; title: string; message: string; time: string; type: 'alert' | 'success' | 'info' }>>(() => {
+    if (currentUser?.id) {
+      const key = `studypilot_notifications_${currentUser.id}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+      }
+      return []; // Brand new real users start with 0 notifications
     }
-  ]);
+    return [
+      {
+        id: 'demo-1',
+        title: '[DEMO] Upcoming Assessment',
+        message: 'CS201: Database Management Systems Unit 3 practice quiz scheduled.',
+        time: '10 mins ago',
+        type: 'alert'
+      },
+      {
+        id: 'demo-2',
+        title: '[DEMO] Weak Concept Flagged',
+        message: 'AI flagged BCNF Dependency Preservation for revision.',
+        time: '1 hour ago',
+        type: 'info'
+      },
+      {
+        id: 'demo-3',
+        title: '[DEMO] Study Streak Active',
+        message: '4-day continuous study streak maintained for SGU Semester III exams.',
+        time: 'Yesterday',
+        type: 'success'
+      }
+    ];
+  });
+
+  // Reload notifications when authenticated student switches
+  useEffect(() => {
+    if (currentUser?.id) {
+      const key = `studypilot_notifications_${currentUser.id}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          setNotifications(JSON.parse(saved));
+          return;
+        } catch {}
+      }
+      setNotifications([]);
+    }
+  }, [currentUser?.id]);
+
+  // Persist notifications per user
+  useEffect(() => {
+    if (currentUser?.id) {
+      try {
+        localStorage.setItem(`studypilot_notifications_${currentUser.id}`, JSON.stringify(notifications));
+      } catch {}
+    }
+  }, [notifications, currentUser?.id]);
 
   // Speech Synthesis state
   const [isSpeaking, setIsSpeaking] = useState(false);

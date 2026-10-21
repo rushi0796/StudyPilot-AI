@@ -23,6 +23,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { UploadedDocument, DocumentChunk } from '../../types';
 import { parseDocumentFile } from '../../services/documentParser';
+import { INITIAL_PRELOADED_DOCUMENTS } from '../../data/preloadedDocs';
 
 export const MyFilesView: React.FC = () => {
   const { 
@@ -325,12 +326,37 @@ export const MyFilesView: React.FC = () => {
       {/* 5. Document Cards / List */}
       <div className="space-y-3.5">
         {filteredDocs.length === 0 ? (
-          <div className="p-12 text-center text-charcoal-400 rounded-2xl bg-white border border-[#E5E0D5] shadow-subtle">
-            <FolderOpen className="w-10 h-10 text-charcoal-400 mx-auto mb-2 opacity-50" />
-            <p className="font-semibold text-charcoal-700">No documents found matching your filter.</p>
-            <p className="text-xs text-charcoal-400 mt-1">
-              Upload a syllabus handout or notes file above to get started.
+          <div className="p-10 text-center rounded-2xl bg-white border border-[#E5E0D5] shadow-subtle">
+            <div className="w-12 h-12 rounded-2xl bg-forest-50 text-forest-600 flex items-center justify-center mx-auto mb-3 border border-forest-100">
+              <FolderOpen className="w-6 h-6" />
+            </div>
+            <p className="font-bold text-charcoal-800 text-sm">
+              {uploadedDocuments.length === 0 
+                ? 'Your Study Document Workspace is Empty' 
+                : 'No documents match your search or filter.'}
             </p>
+            <p className="text-xs text-charcoal-500 mt-1 max-w-md mx-auto leading-relaxed">
+              {uploadedDocuments.length === 0 
+                ? 'Upload your semester syllabus, lecture notes, or past papers (PDF, DOCX, TXT) to ground AI doubt-solving in your curriculum.' 
+                : 'Try adjusting your search query or switching to all formats.'}
+            </p>
+            {uploadedDocuments.length === 0 && INITIAL_PRELOADED_DOCUMENTS.length > 0 && (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const sample = INITIAL_PRELOADED_DOCUMENTS[0];
+                    if (sample) {
+                      addUploadedDocument(sample);
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-forest-700 bg-forest-50 hover:bg-forest-100 border border-forest-200 shadow-sm transition-all cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-forest-600" />
+                  <span>Load SGU Sample Handout (DBMS Unit 3)</span>
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           filteredDocs.map((doc) => {

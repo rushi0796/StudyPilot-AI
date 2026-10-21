@@ -14,6 +14,7 @@ import {
   ShieldCheck 
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { VALIDATION_LIMITS } from '../../utils/validation';
 
 export const AuthModal: React.FC = () => {
   const { 
@@ -129,6 +130,11 @@ export const AuthModal: React.FC = () => {
         });
         if (!res.success) {
           setFormError(res.error || 'Failed to create student account.');
+        } else {
+          // Signup successful! AuthContext has switched to 'signin' mode and set the success banner.
+          // Reset password fields while keeping registered email pre-filled.
+          setPassword('');
+          setConfirmPassword('');
         }
       }
     } finally {
@@ -239,14 +245,20 @@ export const AuthModal: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             {authModalMode === 'signup' && (
               <div>
-                <label className="block text-xs font-bold text-charcoal-800 mb-1.5">
-                  Student Full Name <span className="text-rose-500">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-charcoal-800">
+                    Student Full Name <span className="text-rose-500">*</span>
+                  </label>
+                  <span className="text-[10px] text-charcoal-400 font-mono">
+                    {name.length}/{VALIDATION_LIMITS.NAME_MAX}
+                  </span>
+                </div>
                 <div className="relative">
                   <User className="w-4 h-4 text-charcoal-400 absolute left-3.5 top-3" />
                   <input
                     type="text"
                     required
+                    maxLength={VALIDATION_LIMITS.NAME_MAX}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Aken Rushikesh Gopal"
@@ -258,14 +270,22 @@ export const AuthModal: React.FC = () => {
             )}
 
             <div>
-              <label className="block text-xs font-bold text-charcoal-800 mb-1.5">
-                University Email Address <span className="text-rose-500">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-charcoal-800">
+                  University Email Address <span className="text-rose-500">*</span>
+                </label>
+                {authModalMode === 'signup' && (
+                  <span className="text-[10px] text-charcoal-400 font-mono">
+                    {email.length}/{VALIDATION_LIMITS.EMAIL_MAX}
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <Mail className="w-4 h-4 text-charcoal-400 absolute left-3.5 top-3" />
                 <input
                   type="email"
                   required
+                  maxLength={VALIDATION_LIMITS.EMAIL_MAX}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="student@sgu.ac.in"
@@ -281,8 +301,8 @@ export const AuthModal: React.FC = () => {
                   Password <span className="text-rose-500">*</span>
                 </label>
                 {authModalMode === 'signup' && (
-                  <span className="text-[10px] text-charcoal-400 font-medium">
-                    At least 8 characters
+                  <span className="text-[10px] text-charcoal-400 font-medium font-mono">
+                    {password.length}/{VALIDATION_LIMITS.PASSWORD_MAX}
                   </span>
                 )}
               </div>
@@ -291,6 +311,7 @@ export const AuthModal: React.FC = () => {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  maxLength={VALIDATION_LIMITS.PASSWORD_MAX}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
@@ -319,6 +340,7 @@ export const AuthModal: React.FC = () => {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
+                    maxLength={VALIDATION_LIMITS.PASSWORD_MAX}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
@@ -349,6 +371,7 @@ export const AuthModal: React.FC = () => {
                     </label>
                     <input
                       type="text"
+                      maxLength={VALIDATION_LIMITS.UNIVERSITY_MAX}
                       value={university}
                       onChange={(e) => setUniversity(e.target.value)}
                       className="w-full px-3 py-2 text-xs bg-academic-bg border border-[#E5E0D5] rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-forest-500"
@@ -362,6 +385,7 @@ export const AuthModal: React.FC = () => {
                     </label>
                     <input
                       type="text"
+                      maxLength={VALIDATION_LIMITS.COURSE_MAX}
                       value={course}
                       onChange={(e) => setCourse(e.target.value)}
                       className="w-full px-3 py-2 text-xs bg-academic-bg border border-[#E5E0D5] rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-forest-500"
@@ -375,6 +399,7 @@ export const AuthModal: React.FC = () => {
                     </label>
                     <input
                       type="text"
+                      maxLength={VALIDATION_LIMITS.BRANCH_MAX}
                       value={branch}
                       onChange={(e) => setBranch(e.target.value)}
                       className="w-full px-3 py-2 text-xs bg-academic-bg border border-[#E5E0D5] rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-forest-500"
@@ -389,6 +414,7 @@ export const AuthModal: React.FC = () => {
                     <div className="grid grid-cols-2 gap-2">
                       <input
                         type="text"
+                        maxLength={VALIDATION_LIMITS.YEAR_MAX}
                         value={year}
                         onChange={(e) => setYear(e.target.value)}
                         placeholder="2nd Year"
@@ -397,6 +423,7 @@ export const AuthModal: React.FC = () => {
                       />
                       <input
                         type="text"
+                        maxLength={VALIDATION_LIMITS.SEMESTER_MAX}
                         value={semester}
                         onChange={(e) => setSemester(e.target.value)}
                         placeholder="Semester III"

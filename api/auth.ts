@@ -21,6 +21,7 @@ export interface UserRecord {
   avatar_url?: string;
   auth_provider?: string;
   google_id?: string;
+  onboarding_completed?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -37,6 +38,7 @@ export interface SafeUser {
   preferredLanguage: string;
   avatarUrl?: string;
   authProvider: string;
+  onboardingCompleted: boolean;
   createdAt: string;
 }
 
@@ -160,10 +162,14 @@ export async function ensureDatabaseSchema(): Promise<void> {
         avatar_url TEXT,
         auth_provider VARCHAR(32) DEFAULT 'local',
         google_id VARCHAR(128) UNIQUE,
+        onboarding_completed BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // Ensure non-destructive schema migration for existing databases
+    await queryNeon('ALTER TABLE studypilot_users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN DEFAULT FALSE;');
 
     await queryNeon(`
       CREATE TABLE IF NOT EXISTS studypilot_sessions (
@@ -395,6 +401,7 @@ export async function insertUser(userData: Omit<UserRecord, 'created_at' | 'upda
   const record: UserRecord = {
     ...userData,
     email: normEmail,
+    onboarding_completed: Boolean(userData.onboarding_completed),
     created_at: now,
     updated_at: now
   };
@@ -408,8 +415,8 @@ export async function insertUser(userData: Omit<UserRecord, 'created_at' | 'upda
   await ensureDatabaseSchema();
   const rows = await queryNeon<UserRecord>(
     `INSERT INTO studypilot_users (
-       id, email, password_hash, name, university, course, branch, year, semester, preferred_language, avatar_url, auth_provider, google_id
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       id, email, password_hash, name, university, course, branch, year, semester, preferred_language, avatar_url, auth_provider, google_id, onboarding_completed
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
      RETURNING *;`,
     [
       record.id,
@@ -424,7 +431,8 @@ export async function insertUser(userData: Omit<UserRecord, 'created_at' | 'upda
       record.preferred_language || 'en',
       record.avatar_url || null,
       record.auth_provider || 'local',
-      record.google_id || null
+      record.google_id || null,
+      Boolean(record.onboarding_completed)
     ]
   );
   return rows[0];
@@ -639,6 +647,7 @@ export function toSafeUser(user: UserRecord): SafeUser {
     preferredLanguage: user.preferred_language || 'en',
     avatarUrl: user.avatar_url || undefined,
     authProvider: user.auth_provider || 'local',
+    onboardingCompleted: Boolean(user.onboarding_completed),
     createdAt: user.created_at
   };
 }
@@ -746,37 +755,74 @@ export async function processSignup(body: any, clientIp = '127.0.0.1') {
 
   const { email, password, confirmPassword, name, university, course, branch, year, semester, preferredLanguage } = body || {};
 
-  if (!email || !password || !name) {
+  const cleanName = typeof name === 'string' ? name.trim() : '';
+  const cleanEmail = typeof email === 'string' ? email.trim() : '';
+  const cleanPw = typeof password === 'string' ? password : '';
+  const cleanUni = typeof university === 'string' && university.trim() ? university.trim() : 'Sanjay Ghodawat University';
+  const cleanCourse = typeof course === 'string' && course.trim() ? course.trim() : 'B.Tech';
+  const cleanBranch = typeof branch === 'string' && branch.trim() ? branch.trim() : 'AIML';
+  const cleanYear = typeof year === 'string' && year.trim() ? year.trim() : '2nd Year';
+  const cleanSemester = typeof semester === 'string' && semester.trim() ? semester.trim() : 'Semester III';
+  const cleanLang = typeof preferredLanguage === 'string' && preferredLanguage.trim() ? preferredLanguage.trim() : 'en';
+
+  if (!cleanName || !cleanEmail || !cleanPw) {
     return {
       status: 400,
       body: { error: { message: 'Name, email, and password are required.', code: 'INVALID_INPUT' } }
     };
   }
 
-  if (confirmPassword !== undefined && password !== confirmPassword) {
+  if (cleanName.length < 2 || cleanName.length > 70) {
+    return {
+      status: 400,
+      body: { error: { message: 'Student name must be between 2 and 70 characters.', code: 'INVALID_NAME_LENGTH' } }
+    };
+  }
+
+  if (cleanEmail.length < 5 || cleanEmail.length > 254 || !isValidEmail(cleanEmail)) {
+    return {
+      status: 400,
+      body: { error: { message: 'A valid university email address (maximum 254 characters) is required.', code: 'INVALID_EMAIL' } }
+    };
+  }
+
+  if (cleanPw.length < 8 || cleanPw.length > 100) {
+    return {
+      status: 400,
+      body: { error: { message: 'Password must be between 8 and 100 characters long.', code: 'WEAK_PASSWORD' } }
+    };
+  }
+
+  if (confirmPassword !== undefined && cleanPw !== confirmPassword) {
     return {
       status: 400,
       body: { error: { message: 'Passwords do not match. Please re-enter your password.', code: 'PASSWORD_MISMATCH' } }
     };
   }
 
-  if (!isValidEmail(email)) {
+  if (cleanUni.length > 100) {
     return {
       status: 400,
-      body: { error: { message: 'Invalid email address format.', code: 'INVALID_EMAIL' } }
+      body: { error: { message: 'University name cannot exceed 100 characters.', code: 'INVALID_UNIVERSITY_LENGTH' } }
     };
   }
 
-  const pwCheck = validatePasswordStrength(password);
-  if (!pwCheck.valid) {
+  if (cleanCourse.length > 80 || cleanBranch.length > 80) {
     return {
       status: 400,
-      body: { error: { message: pwCheck.error || 'Password does not meet security requirements.', code: 'WEAK_PASSWORD' } }
+      body: { error: { message: 'Course and Branch cannot exceed 80 characters.', code: 'INVALID_COURSE_LENGTH' } }
+    };
+  }
+
+  if (cleanYear.length > 30 || cleanSemester.length > 30) {
+    return {
+      status: 400,
+      body: { error: { message: 'Academic Year and Semester cannot exceed 30 characters.', code: 'INVALID_TERM_LENGTH' } }
     };
   }
 
   try {
-    const existing = await findUserByEmail(email);
+    const existing = await findUserByEmail(cleanEmail);
     if (existing) {
       return {
         status: 409,
@@ -784,45 +830,33 @@ export async function processSignup(body: any, clientIp = '127.0.0.1') {
       };
     }
 
-    const passwordHash = await hashPassword(password);
+    const passwordHash = await hashPassword(cleanPw);
     const userId = crypto.randomUUID();
     const newUser = await insertUser({
       id: userId,
-      email: normalizeEmail(email),
+      email: normalizeEmail(cleanEmail),
       password_hash: passwordHash,
-      name: name.trim(),
-      university: university || 'Sanjay Ghodawat University',
-      course: course || 'B.Tech',
-      branch: branch || 'AIML',
-      year: year || '2nd Year',
-      semester: semester || 'Semester III',
-      preferred_language: preferredLanguage || 'en',
-      auth_provider: 'local'
+      name: cleanName,
+      university: cleanUni,
+      course: cleanCourse,
+      branch: cleanBranch,
+      year: cleanYear,
+      semester: cleanSemester,
+      preferred_language: cleanLang.slice(0, 10),
+      auth_provider: 'local',
+      onboarding_completed: false
     });
 
-    const sessionToken = generateSessionToken();
-    const tokenHash = hashSessionToken(sessionToken);
-    const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000).toISOString();
-
-    await insertSession({
-      id: crypto.randomUUID(),
-      user_id: newUser.id,
-      token_hash: tokenHash,
-      expires_at: expiresAt,
-      ip_address: clientIp
-    });
-
-    const cookieHeader = createSessionCookie(sessionToken);
-
+    // NOTE: In the authenticated user journey, signup does NOT issue a session token.
+    // The student is directed to the Login screen with email prefilled, ensuring explicit credentials verification.
     return {
       status: 201,
-      cookie: cookieHeader,
       body: {
         success: true,
-        message: 'Account created successfully.',
-        user: toSafeUser(newUser),
-        token: sessionToken,
-        session: { token: sessionToken, expiresAt }
+        message: 'Account created successfully! Please sign in with your email and password.',
+        requiresLogin: true,
+        email: normalizeEmail(cleanEmail),
+        user: toSafeUser(newUser)
       }
     };
   } catch (err: any) {
@@ -842,6 +876,74 @@ export async function processSignup(body: any, clientIp = '127.0.0.1') {
       body: { error: { message: err?.message ? `Internal error during signup: ${err.message}` : 'Internal error during signup.', code: 'INTERNAL_ERROR' } }
     };
   }
+}
+
+export async function processCompleteOnboarding(req: any, body: any) {
+  const token = getSessionTokenFromRequest(req);
+  if (!token) {
+    return {
+      status: 401,
+      body: { error: { message: 'Authentication required to complete onboarding.', code: 'UNAUTHENTICATED' } }
+    };
+  }
+
+  const user = await findUserBySessionToken(token);
+  if (!user) {
+    return {
+      status: 401,
+      body: { error: { message: 'Invalid or expired session. Please sign in again.', code: 'SESSION_EXPIRED' } }
+    };
+  }
+
+  const { university, course, branch, year, semester, preferredLanguage } = body || {};
+  const updatedUniversity = typeof university === 'string' && university.trim() ? university.trim().slice(0, 100) : user.university;
+  const updatedCourse = typeof course === 'string' && course.trim() ? course.trim().slice(0, 80) : user.course;
+  const updatedBranch = typeof branch === 'string' && branch.trim() ? branch.trim().slice(0, 80) : user.branch;
+  const updatedYear = typeof year === 'string' && year.trim() ? year.trim().slice(0, 30) : user.year;
+  const updatedSemester = typeof semester === 'string' && semester.trim() ? semester.trim().slice(0, 30) : user.semester;
+  const updatedLanguage = typeof preferredLanguage === 'string' && preferredLanguage.trim() ? preferredLanguage.trim().slice(0, 10) : user.preferred_language;
+
+  if (!isNeonConfigured()) {
+    if (isProductionEnvironment()) throw new DatabaseConfigurationError();
+    user.onboarding_completed = true;
+    user.university = updatedUniversity;
+    user.course = updatedCourse;
+    user.branch = updatedBranch;
+    user.year = updatedYear;
+    user.semester = updatedSemester;
+    user.preferred_language = updatedLanguage;
+    user.updated_at = new Date().toISOString();
+    return {
+      status: 200,
+      body: { success: true, message: 'Onboarding completed successfully.', user: toSafeUser(user) }
+    };
+  }
+
+  await ensureDatabaseSchema();
+  const rows = await queryNeon<UserRecord>(
+    `UPDATE studypilot_users 
+     SET onboarding_completed = TRUE,
+         university = COALESCE($2, university),
+         course = COALESCE($3, course),
+         branch = COALESCE($4, branch),
+         year = COALESCE($5, year),
+         semester = COALESCE($6, semester),
+         preferred_language = COALESCE($7, preferred_language),
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1
+     RETURNING *;`,
+    [user.id, updatedUniversity, updatedCourse, updatedBranch, updatedYear, updatedSemester, updatedLanguage]
+  );
+
+  const updatedUser = rows[0] || { ...user, onboarding_completed: true };
+  return {
+    status: 200,
+    body: {
+      success: true,
+      message: 'Onboarding completed successfully.',
+      user: toSafeUser(updatedUser)
+    }
+  };
 }
 
 export async function processLogin(body: any, clientIp = '127.0.0.1') {
@@ -1049,6 +1151,13 @@ export default async function authHandler(req: any, res: any) {
   // Current session (me)
   if (target.includes('/me') || subroute === 'me' || target.endsWith(' me')) {
     const result = await processGetCurrentUser(req);
+    if (result.cookie) res.setHeader('Set-Cookie', result.cookie);
+    return res.status(result.status).json(result.body);
+  }
+
+  // Onboarding completion
+  if (target.includes('onboarding') || subroute === 'onboarding') {
+    const result = await processCompleteOnboarding(req, req.body || {});
     if (result.cookie) res.setHeader('Set-Cookie', result.cookie);
     return res.status(result.status).json(result.body);
   }

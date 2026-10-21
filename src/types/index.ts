@@ -33,6 +33,8 @@ export interface StudentProfile {
     stepByStep: boolean;
     examplesBased: boolean;
     voiceExplanations: boolean;
+    dailyGoalMinutes?: number;
+    primaryFocus?: 'exam_prep' | 'concept_mastery' | 'revision';
   };
   onboardingCompleted: boolean;
   geminiApiKey?: string;

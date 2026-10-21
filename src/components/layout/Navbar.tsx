@@ -11,7 +11,8 @@ import {
   Volume2,
   FolderOpen,
   LogIn,
-  LogOut
+  LogOut,
+  CheckCircle2
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
@@ -217,8 +218,12 @@ export const Navbar: React.FC = () => {
                   <span className="text-[10px] text-charcoal-400">{notifications.length} alerts</span>
                 </div>
                 {notifications.length === 0 ? (
-                  <div className="text-center py-6 text-xs text-charcoal-400">
-                    No active study notifications.
+                  <div className="text-center py-7 px-4 text-xs text-charcoal-500">
+                    <div className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center mb-2 border border-emerald-200">
+                      <CheckCircle2 className="w-5 h-5" />
+                    </div>
+                    <p className="font-bold text-charcoal-800">You're all caught up!</p>
+                    <p className="text-[11px] text-charcoal-400 mt-0.5">No new study alerts.</p>
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-72 overflow-y-auto pr-1">

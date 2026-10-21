@@ -137,6 +137,16 @@ export async function processChatRequest(payload: ChatRequestPayload) {
     };
   }
 
+  if (userMessage.length > 2000) {
+    return {
+      error: {
+        message: 'Message exceeds maximum allowed limit of 2,000 characters.',
+        code: 'INPUT_TOO_LONG',
+        status: 400
+      }
+    };
+  }
+
   const preferredModel = payload.model || 'gemini-3.8-flash';
 
   const selectedLang = (payload.language || 'en').toLowerCase();

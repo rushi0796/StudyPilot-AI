@@ -31,7 +31,8 @@ import {
   processSignup, 
   processLogin, 
   processGetCurrentUser, 
-  processLogout 
+  processLogout,
+  processCompleteOnboarding
 } from '../api/auth.ts';
 import healthHandler from '../api/health.ts';
 
@@ -129,10 +130,13 @@ async function runTests() {
   });
 
   check('Signup returns HTTP 201 Created', signupResult.status === 201);
+  check('Signup requires subsequent sign-in (requiresLogin: true)', signupResult.body?.requiresLogin === true);
+  check('Signup does NOT issue a session cookie or token (mandates explicit login)', 
+    !signupResult.cookie && !signupResult.body?.token);
+  check('Signup creates student with onboardingCompleted: false', 
+    signupResult.body?.user?.onboardingCompleted === false);
   check('Signup response includes user profile without password hash', 
     signupResult.body?.user?.email === 'aken.rushikesh@sgu.ac.in' && !('password_hash' in signupResult.body.user));
-  check('Signup returns session token and sets HttpOnly cookie', 
-    Boolean(signupResult.body?.token) && Boolean(signupResult.cookie));
 
   // Re-signup duplicate email check
   const duplicateSignup = await processSignup({
@@ -162,8 +166,28 @@ async function runTests() {
   check('Login with valid credentials returns HTTP 200 OK', validLogin.status === 200);
   check('Login returns authenticated safe student user', 
     validLogin.body?.user?.name === 'Aken Rushikesh Gopal');
+  check('Login reflects uncompleted onboarding state (onboardingCompleted: false)',
+    validLogin.body?.user?.onboardingCompleted === false);
   check('Login returns new session token and cookie header', 
     Boolean(validLogin.body?.token) && Boolean(validLogin.cookie));
+
+  const sessionToken = validLogin.body.token;
+
+  // Onboarding Completion Verification
+  console.log('\n6b. Testing Onboarding Completion Flow:');
+  const onboardingReq = {
+    headers: {
+      cookie: `studypilot_session=${sessionToken}`
+    }
+  };
+  const onboardingRes = await processCompleteOnboarding(onboardingReq, {
+    preferredLanguage: 'mr'
+  });
+  check('Complete onboarding returns HTTP 200 OK', onboardingRes.status === 200);
+  check('User now has onboardingCompleted: true in profile', 
+    onboardingRes.body?.user?.onboardingCompleted === true);
+  check('Onboarding updates preferred language to mr', 
+    onboardingRes.body?.user?.preferredLanguage === 'mr');
 
   const invalidPasswordLogin = await processLogin({
     email: 'aken.rushikesh@sgu.ac.in',
@@ -179,9 +203,27 @@ async function runTests() {
   });
   check('Login with non-existent email returns HTTP 401 Unauthorized', nonexistentLogin.status === 401);
 
+  // Character Limit Validation Tests
+  console.log('\n6c. Testing Character Limits & Input Validation:');
+  const longNameSignup = await processSignup({
+    email: 'longname@sgu.ac.in',
+    password: 'Password123!',
+    name: 'A'.repeat(71)
+  });
+  check('Rejects name exceeding 70 characters with HTTP 400', 
+    longNameSignup.status === 400 && longNameSignup.body?.error?.code === 'INVALID_NAME_LENGTH');
+
+  const longUniSignup = await processSignup({
+    email: 'longuni@sgu.ac.in',
+    password: 'Password123!',
+    name: 'Valid Name',
+    university: 'U'.repeat(101)
+  });
+  check('Rejects university exceeding 100 characters with HTTP 400', 
+    longUniSignup.status === 400 && longUniSignup.body?.error?.code === 'INVALID_UNIVERSITY_LENGTH');
+
   // 7. Current Session Verification (/api/auth/me) & Returning User Flow
   console.log('\n7. Testing Current Session (/api/auth/me) & Returning User Flow:');
-  const sessionToken = validLogin.body.token;
 
   // Simulate incoming request with Cookie header
   const reqWithCookie = {

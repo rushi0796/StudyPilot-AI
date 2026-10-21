@@ -31,6 +31,36 @@ export default async function handler(req: any, res: any) {
 
     const { question, studentAnswer, maxMarks, markingCriteria, documentChunks } = body;
 
+    const cleanQuestion = typeof question === 'string' ? question.trim() : '';
+    const cleanAnswer = typeof studentAnswer === 'string' ? studentAnswer.trim() : '';
+
+    if (!cleanQuestion || !cleanAnswer) {
+      return res.status(400).json({
+        error: {
+          message: 'Both examination question and student answer are required for evaluation.',
+          code: 'INVALID_INPUT'
+        }
+      });
+    }
+
+    if (cleanQuestion.length > 500) {
+      return res.status(400).json({
+        error: {
+          message: 'Examination question exceeds maximum allowed length of 500 characters.',
+          code: 'INPUT_TOO_LONG'
+        }
+      });
+    }
+
+    if (cleanAnswer.length > 5000) {
+      return res.status(400).json({
+        error: {
+          message: 'Student answer exceeds maximum allowed length of 5,000 characters.',
+          code: 'INPUT_TOO_LONG'
+        }
+      });
+    }
+
     let ragContext = '';
     if (documentChunks && documentChunks.length > 0) {
       ragContext = `\n\nReference Material from Student's Uploaded Notes:\n` +

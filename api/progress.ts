@@ -527,10 +527,10 @@ export async function recordQuizAttempt(
   const attempt: QuizAttemptRecord = {
     id: attemptId,
     user_id: userId,
-    quiz_id: data.quizId || data.quiz_id || 'quiz_standard',
-    title: (data.title || 'Practice Quiz').trim().slice(0, 255),
-    subject_id: (data.subjectId || data.subject_id || 'cs201').trim().slice(0, 64),
-    subject_name: (data.subjectName || data.subject_name || 'Database Management Systems').trim().slice(0, 255),
+    quiz_id: (data.quizId || data.quiz_id || 'quiz_standard').trim().slice(0, 64),
+    title: (data.title || 'Practice Quiz').trim().slice(0, 120),
+    subject_id: (data.subjectId || data.subject_id || 'cs201').trim().slice(0, 32),
+    subject_name: (data.subjectName || data.subject_name || 'Database Management Systems').trim().slice(0, 80),
     score: boundedScore,
     total_marks: totalMarks,
     questions_count: questionsCount,
@@ -731,6 +731,8 @@ export async function recordAnswerEvaluation(
   const maxMarks = Math.max(1, Number(data.maxMarks || data.max_marks) || 5);
   const estimatedMarks = Math.min(maxMarks, Math.max(0, Number(data.estimatedMarks !== undefined ? data.estimatedMarks : data.estimated_marks) || 0));
   const scorePercentage = Math.min(100, Math.max(0, Number(data.scorePercentage || data.score_percentage) || Math.round((estimatedMarks / maxMarks) * 100)));
+  const cleanSubject = (data.subject || 'Academic Subject').trim().slice(0, 80);
+  const cleanGradeTier = (data.gradeTier || 'Evaluated').trim().slice(0, 30);
   const now = new Date().toISOString();
 
   if (!isNeonConfigured()) {
@@ -740,8 +742,8 @@ export async function recordAnswerEvaluation(
       user_id: userId,
       activity_type: 'answer_evaluated',
       subject_id: 'cs201',
-      title: `Answer Evaluated: ${data.subject || 'Academic Subject'}`,
-      description: `Awarded ${estimatedMarks}/${maxMarks} marks (${scorePercentage}%, ${data.gradeTier || 'Evaluated'}).`,
+      title: `Answer Evaluated: ${cleanSubject}`,
+      description: `Awarded ${estimatedMarks}/${maxMarks} marks (${scorePercentage}%, ${cleanGradeTier}).`,
       score_percentage: scorePercentage,
       created_at: now
     });
@@ -803,8 +805,8 @@ export async function recordAnswerEvaluation(
     [
       crypto.randomUUID(),
       userId,
-      `Answer Evaluated: ${data.subject || 'Academic Subject'}`,
-      `Awarded ${estimatedMarks}/${maxMarks} marks (${scorePercentage}%, ${data.gradeTier || 'Evaluated'}).`,
+      `Answer Evaluated: ${cleanSubject}`,
+      `Awarded ${estimatedMarks}/${maxMarks} marks (${scorePercentage}%, ${cleanGradeTier}).`,
       scorePercentage,
       now
     ]

@@ -31,18 +31,22 @@ export default async function handler(req: any, res: any) {
 
     const { subject, topic, documentChunks, count = 4 } = body;
 
+    const cleanSubject = typeof subject === 'string' ? subject.trim().slice(0, 80) : 'Engineering';
+    const cleanTopic = typeof topic === 'string' ? topic.trim().slice(0, 120) : 'General';
+    const validCount = Math.max(1, Math.min(typeof count === 'number' ? count : 4, 20));
+
     const docText = (documentChunks || []).map((c: any) => c.content).slice(0, 3).join('\n') || '';
-    const prompt = `Create a ${count}-question university practice quiz for ${subject || 'Engineering'} on the topic "${topic || 'General'}".
+    const prompt = `Create a ${validCount}-question university practice quiz for ${cleanSubject} on the topic "${cleanTopic}".
 ${docText ? `Ground the questions in this document material:\n${docText}\n` : ''}
 
-Output ONLY a JSON array of ${count} items with this exact schema:
+Output ONLY a JSON array of ${validCount} items with this exact schema:
 [
   {
     "id": "gen_q1",
     "type": "mcq",
     "question": "Question text here",
     "marks": 2,
-    "topic": "${topic || 'General'}",
+    "topic": "${cleanTopic}",
     "options": ["Option A", "Option B", "Option C", "Option D"],
     "correctAnswer": 0,
     "explanation": "Detailed explanation of why option A is correct."

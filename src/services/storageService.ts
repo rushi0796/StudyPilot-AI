@@ -75,15 +75,21 @@ export async function loadPersistentDocuments(userId?: string): Promise<Uploaded
         const rawResults = (request.result as UploadedDocument[]) || [];
         if (rawResults.length > 0) {
           const userDocs = filterDocumentsForUser(rawResults, userId);
-          // If user has no personal docs, ensure preloaded documents are present
-          if (userDocs.length === 0) {
-            resolve(INITIAL_PRELOADED_DOCUMENTS);
-          } else {
+          // For authenticated students, strictly return their personal saved documents (empty if brand new)
+          if (userId && userId !== 'guest') {
             resolve(userDocs);
+          } else {
+            resolve(userDocs.length > 0 ? userDocs : INITIAL_PRELOADED_DOCUMENTS);
           }
         } else {
-          // If empty, seed with initial academic documents
-          seedInitialDocuments(db).then(docs => resolve(filterDocumentsForUser(docs, userId))).catch(() => resolve(INITIAL_PRELOADED_DOCUMENTS));
+          // If persistent store is empty:
+          if (userId && userId !== 'guest') {
+            // Real authenticated students start with an empty document list
+            resolve([]);
+          } else {
+            // Unauthenticated guest/demo mode seeds initial sample documents
+            seedInitialDocuments(db).then(docs => resolve(filterDocumentsForUser(docs, userId))).catch(() => resolve(INITIAL_PRELOADED_DOCUMENTS));
+          }
         }
       };
 
@@ -167,6 +173,9 @@ function loadFallbackDocuments(userId?: string): UploadedDocument[] {
       return filterDocumentsForUser(parsed, userId);
     }
   } catch {}
+  if (userId && userId !== 'guest') {
+    return [];
+  }
   return INITIAL_PRELOADED_DOCUMENTS;
 }
 

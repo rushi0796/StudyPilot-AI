@@ -12,6 +12,7 @@ export interface AuthUser {
   preferredLanguage: string;
   avatarUrl?: string;
   authProvider?: string;
+  onboardingCompleted?: boolean;
   createdAt: string;
 }
 
@@ -49,10 +50,11 @@ export interface AuthContextType {
   setAuthModalMode: (mode: 'signin' | 'signup') => void;
   clearAuthNotification: () => void;
   bypassLoading: () => void;
-  signup: (credentials: SignupCredentials) => Promise<{ success: boolean; error?: string }>;
+  signup: (credentials: SignupCredentials) => Promise<{ success: boolean; requiresLogin?: boolean; email?: string; error?: string }>;
   login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   checkSession: () => Promise<AuthUser | null>;
+  completeOnboarding: (details?: any) => Promise<{ success: boolean; error?: string; user?: AuthUser }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -165,9 +167,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [checkSession]);
 
   /**
-   * Student Signup
+   * Student Signup (Creates account with onboarding_completed = false and requires explicit login)
    */
-  const signup = useCallback(async (credentials: SignupCredentials): Promise<{ success: boolean; error?: string }> => {
+  const signup = useCallback(async (credentials: SignupCredentials): Promise<{ success: boolean; requiresLogin?: boolean; email?: string; error?: string }> => {
     try {
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
@@ -183,17 +185,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, error: message };
       }
 
-      if (data?.user) {
-        setCurrentUser(data.user);
-        closeAuthModal();
-        return { success: true };
+      if (data?.success) {
+        setAuthNotification({
+          type: 'success',
+          message: data.message || 'Account created successfully! Please sign in with your email and password to begin.'
+        });
+        setAuthModalMode('signin');
+        return { 
+          success: true, 
+          requiresLogin: true, 
+          email: credentials.email.toLowerCase().trim() 
+        };
       }
 
       return { success: false, error: 'Unexpected response during signup.' };
     } catch (err: any) {
       return { success: false, error: err?.message || 'Network error during signup. Please try again.' };
     }
-  }, [closeAuthModal]);
+  }, []);
+
+  /**
+   * Complete Student Onboarding
+   */
+  const completeOnboarding = useCallback(async (details?: any): Promise<{ success: boolean; error?: string; user?: AuthUser }> => {
+    try {
+      const response = await fetch('/api/auth/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(details || {})
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        return { success: false, error: data?.error?.message || 'Failed to complete onboarding.' };
+      }
+
+      if (data?.user) {
+        setCurrentUser(data.user);
+        return { success: true, user: data.user };
+      }
+
+      setCurrentUser(prev => prev ? { ...prev, onboardingCompleted: true, ...details } : null);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error completing onboarding.' };
+    }
+  }, []);
 
   /**
    * Student Login
@@ -259,7 +298,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signup,
         login,
         logout,
-        checkSession
+        checkSession,
+        completeOnboarding
       }}
     >
       {children}
