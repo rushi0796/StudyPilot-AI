@@ -313,7 +313,7 @@ export async function getAuthenticatedUser(req: any): Promise<{ id: string; emai
    ========================================================================== */
 
 /**
- * Total topics across the standard SGU Semester III AI Curriculum (approx 90 topics, 18 per subject)
+ * Total topics across the standard Semester III AI Curriculum (approx 90 topics, 18 per subject)
  */
 export const TOTAL_CURRICULUM_TOPICS = 90;
 export const TOTAL_CURRICULUM_MODULES = 30; // 6 units x 5 subjects

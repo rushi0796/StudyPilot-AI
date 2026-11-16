@@ -101,7 +101,7 @@ export const GlobalSearchModal: React.FC = () => {
           {!query.trim() && (
             <div className="space-y-3">
               <span className="text-[11px] font-bold text-charcoal-400 uppercase tracking-wider block">
-                Popular Searches for SGU Semester III
+                Popular Topic Searches
               </span>
               <div className="flex flex-wrap gap-2">
                 {['Database Normalization', 'ACID Properties', '3NF vs BCNF', 'Candidate Keys', 'Conflict Serializability', 'A* Search'].map((tag) => (

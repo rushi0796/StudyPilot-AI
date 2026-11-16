@@ -1,46 +1,21 @@
 import { Subject, QuestionItem, QuizSession, RevisionTask, TeamMember } from '../types';
 
 export const UNIVERSITY_INFO = {
-  name: "Sanjay Ghodawat University",
-  shortName: "SGU",
-  campus: "Kolhapur, Maharashtra",
-  program: "B.Tech in Artificial Intelligence",
-  department: "Department of Artificial Intelligence",
-  academicYear: "2nd Year (Sophomore)",
+  name: "StudyPilot AI Learning Platform",
+  shortName: "StudyPilot AI",
+  campus: "Autonomous Collegiate Network",
+  program: "Engineering & Applied Sciences",
+  department: "Division of Artificial Intelligence & Computing",
+  academicYear: "2nd Year",
   semester: "Semester III",
-  curriculumVersion: "CBCS 2024-2025 (Demo Reference)",
+  curriculumVersion: "Standard CBCS AI Curriculum",
 };
 
-export const TEAM_MEMBERS: TeamMember[] = [
-  {
-    name: "Aken Rushikesh Gopal",
-    role: "Team Leader & Lead System Architect",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-    focus: "Full-Stack Architecture, AI Tutor Pipeline, Evaluation Core"
-  },
-  {
-    name: "Shaik Imam Hussain",
-    role: "AI & Multilingual Systems Specialist",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-    focus: "Speech Synthesis Engine, Hindi & Telugu Cross-lingual Mapping"
-  },
-  {
-    name: "Dasari Aswan Kumar",
-    role: "Curriculum Engineer & Question Bank Lead",
-    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
-    focus: "Marks-Wise Rubrics, Syllabus Extraction, Exam Pattern Mapping"
-  },
-  {
-    name: "Lajaree Ashish Deorkar",
-    role: "UI/UX Designer & Learning Experience Lead",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
-    focus: "Design System, Spaced-Repetition Revision Planner, Analytics"
-  }
-];
+export const TEAM_MEMBERS: TeamMember[] = [];
 
 export const DEFAULT_NEW_STUDENT_PROFILE = {
   name: "",
-  university: "Sanjay Ghodawat University",
+  university: "Engineering Institution",
   course: "B.Tech (Four-Year Degree)",
   branch: "Artificial Intelligence & Machine Learning",
   year: "2nd Year",
@@ -57,7 +32,7 @@ export const DEFAULT_NEW_STUDENT_PROFILE = {
 
 export const INITIAL_STUDENT_PROFILE = {
   name: "Guest Student",
-  university: "Sanjay Ghodawat University",
+  university: "Engineering Institution",
   course: "B.Tech (Four-Year Degree)",
   branch: "Artificial Intelligence & Machine Learning",
   year: "2nd Year",

@@ -330,7 +330,7 @@ export const QuestionBankView: React.FC = () => {
                     <div className="p-4 rounded-2xl bg-white border border-[#E5E0D5] shadow-subtle">
                       <span className="font-bold text-forest-800 text-xs flex items-center gap-1.5 mb-2">
                         <Award className="w-4 h-4 text-forest-600" />
-                        SGU Examination Marking Scheme ({q.marks} Marks Rubric)
+                        Academic Examination Marking Scheme ({q.marks} Marks Rubric)
                       </span>
                       <ul className="space-y-1.5 text-charcoal-700">
                         {q.markingCriteria.map((crit, idx) => (

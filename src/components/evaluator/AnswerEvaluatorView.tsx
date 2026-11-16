@@ -175,7 +175,7 @@ Both tables are now in 3NF and free from transitive anomalies.`
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                   isLive ? 'bg-forest-100 text-forest-800 border border-forest-300' : 'bg-sage-100 text-charcoal-700'
                 }`}>
-                  {isLive ? 'Google Gemini Engine' : 'SGU Rubric Engine'}
+                  {isLive ? 'Google Gemini Engine' : 'Standard Academic Rubric'}
                 </span>
               </div>
               <p className="text-xs text-charcoal-400 mt-0.5">
@@ -358,11 +358,11 @@ Both tables are now in 3NF and free from transitive anomalies.`
             </div>
           </div>
 
-          {/* SGU Official Disclaimer Alert */}
+          {/* Academic Disclaimer Alert */}
           <div className="p-3.5 rounded-xl bg-academic-bg border border-[#E5E0D5] text-[11px] text-charcoal-700 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
             <span>
-              <strong>Academic Disclaimer:</strong> Estimated marks are AI-generated based on the model rubric for study practice. They do not represent official Sanjay Ghodawat University grades.
+              <strong>Academic Disclaimer:</strong> Estimated marks are AI-generated based on the model rubric for study practice. They do not represent official university examination grades.
             </span>
           </div>
 

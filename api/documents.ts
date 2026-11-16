@@ -90,7 +90,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
         email VARCHAR(255) NOT NULL UNIQUE,
         password_hash VARCHAR(255),
         name VARCHAR(255) NOT NULL,
-        university VARCHAR(255) DEFAULT 'Sanjay Ghodawat University',
+        university VARCHAR(255) DEFAULT 'University',
         course VARCHAR(255) DEFAULT 'B.Tech',
         branch VARCHAR(255) DEFAULT 'AIML',
         year VARCHAR(64) DEFAULT '2nd Year',

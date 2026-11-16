@@ -37,6 +37,7 @@ import {
   processAdminAuditLogs,
   resetAdminRateLimit,
   verifyAdminPassword,
+  ADMIN_SESSION_COOKIE_NAME,
   memoryDocuments as adminDocs,
   memorySessions as adminSessions,
   memoryUsers as adminUsers,
@@ -121,7 +122,7 @@ async function runTests() {
     email: 'rushikesh@sgu.ac.in',
     password: 'Password@123',
     confirmPassword: 'Password@123',
-    university: 'Sanjay Ghodawat University',
+    university: 'Engineering University',
     course: 'B.Tech',
     branch: 'AIML'
   }, '127.0.0.1');
@@ -141,9 +142,9 @@ async function runTests() {
   console.log('   ✓ Second student registered with role: "student"');
 
   // ----------------------------------------------------
-  // TEST 2: Student Login
+  // TEST 2: Student Login & Dedicated Student Cookie
   // ----------------------------------------------------
-  console.log('\n2. Testing Student Login...');
+  console.log('\n2. Testing Student Login & Dedicated Session Cookie...');
   const studentLoginRes = await processLogin({
     email: 'rushikesh@sgu.ac.in',
     password: 'Password@123'
@@ -154,7 +155,8 @@ async function runTests() {
   assert.strictEqual(studentLoginRes.body.user.role, 'student');
   const studentToken = studentLoginRes.body.token;
   assert.ok(studentToken, 'Student session token must be issued on successful login');
-  console.log('   ✓ Student login succeeded with role: "student" and valid session cookie');
+  assert.ok(studentLoginRes.cookie && studentLoginRes.cookie.includes('studypilot_session='), 'Student cookie must be studypilot_session');
+  console.log('   ✓ Student login succeeded with role: "student" and studypilot_session cookie');
 
   // Sync user to documents & admin memory for fallback
   const studentUserObj = authUsers.get('rushikesh@sgu.ac.in')!;
@@ -165,7 +167,7 @@ async function runTests() {
   adminSessions.set(studentTokenHash, { user_id: studentUserObj.id, expires_at: new Date(Date.now() + 86400000).toISOString() });
 
   // ----------------------------------------------------
-  // TEST 3 & 4: Admin Login with Admin@07 & Rejection of Incorrect Password
+  // TEST 3: Admin Login with Admin@07 & Dedicated Admin Cookie
   // ----------------------------------------------------
   console.log('\n3. Testing Admin Password Authentication...');
   // 3a: Incorrect password rejected
@@ -178,7 +180,7 @@ async function runTests() {
   assert.strictEqual(badLogin.getData().error.code, 'INVALID_CREDENTIALS');
   console.log('   ✓ Incorrect admin password rejected with HTTP 401 INVALID_CREDENTIALS');
 
-  // 3b: Correct password succeeds
+  // 3b: Correct password succeeds and sets studypilot_admin_session
   const goodLogin = await createMockReqRes({
     method: 'POST',
     body: { password: 'Admin@07' }
@@ -189,13 +191,13 @@ async function runTests() {
   assert.strictEqual(goodLogin.getData().user.role, 'super_admin');
   assert.strictEqual(goodLogin.getData().redirectUrl, '/admin');
 
-  // Extract admin session token from Set-Cookie header
+  // Extract admin session token from Set-Cookie header (studypilot_admin_session)
   const setCookie = goodLogin.getHeaders()['set-cookie'];
-  assert.ok(setCookie && setCookie.includes('studypilot_session='), 'Admin session cookie must be set');
-  const adminTokenMatch = setCookie.match(/studypilot_session=([^;]+)/);
+  assert.ok(setCookie && setCookie.includes('studypilot_admin_session='), 'Admin session cookie must be studypilot_admin_session');
+  const adminTokenMatch = setCookie.match(/studypilot_admin_session=([^;]+)/);
   const adminToken = adminTokenMatch ? adminTokenMatch[1] : '';
   assert.ok(adminToken.length >= 32, 'Cryptographic admin session token generated');
-  console.log('   ✓ Admin login with "Admin@07" succeeded, returning role: "super_admin" and HTTP-only session cookie');
+  console.log('   ✓ Admin login with "Admin@07" succeeded, returning role: "super_admin" and studypilot_admin_session cookie');
 
   // Sync admin user and session into memory stores
   const adminId = 'admin_system_root';
@@ -223,7 +225,7 @@ async function runTests() {
   adminSessions.set(adminTokenHash, { user_id: adminId, expires_at: new Date(Date.now() + 7 * 86400000).toISOString() });
 
   // ----------------------------------------------------
-  // TEST 5: Admin Rate Limiting (Brute-Force Mitigation)
+  // TEST 4: Admin Rate Limiting (Brute-Force Mitigation)
   // ----------------------------------------------------
   console.log('\n4. Testing Admin Brute-Force Rate Limiting...');
   resetAdminRateLimit('192.168.1.100');
@@ -248,46 +250,72 @@ async function runTests() {
   console.log('   ✓ Brute-force rate limiter triggered: blocked after 5 failed attempts with HTTP 429');
 
   // ----------------------------------------------------
-  // TEST 6: Admin Session Survives Page Refresh (/api/auth/me)
+  // TEST 5: Decoupled Independent Auth & Anti-Collision
   // ----------------------------------------------------
-  console.log('\n5. Testing Admin Session Persistence on Page Refresh...');
-  const meReq = await createMockReqRes({
-    headers: { cookie: `studypilot_session=${adminToken}` }
+  console.log('\n5. Testing Decoupled Authentication & Cookie Separation...');
+  // 5a: Admin me endpoint works via studypilot_admin_session
+  const adminMeReq = await createMockReqRes({
+    headers: { cookie: `studypilot_admin_session=${adminToken}` }
   });
-  const meRes = await processGetCurrentUser(meReq.req);
-  assert.strictEqual(meRes.status, 200);
-  assert.strictEqual(meRes.body.user.role, 'super_admin');
-  assert.strictEqual(meRes.body.user.onboardingCompleted, true, 'Admin must have onboardingCompleted: true');
-  console.log('   ✓ Admin session restored on refresh: role is "super_admin" and onboarding is completed (no onboarding modal)');
+  await processAdminMe(adminMeReq.req, adminMeReq.res);
+  assert.strictEqual(adminMeReq.getStatus(), 200);
+  assert.strictEqual(adminMeReq.getData().user.role, 'super_admin');
+  console.log('   ✓ Admin verified via /api/admin?action=me using studypilot_admin_session');
 
-  // ----------------------------------------------------
-  // TEST 7: Super Admin Can Access /admin Overview
-  // ----------------------------------------------------
-  console.log('\n6. Testing Admin Authorization on /admin...');
-  const adminOverview = await createMockReqRes({
-    headers: { cookie: `studypilot_session=${adminToken}` }
+  // 5b: Admin cookie alone CANNOT authenticate student /api/auth/me
+  const studentMeWithAdminCookie = await createMockReqRes({
+    headers: { cookie: `studypilot_admin_session=${adminToken}` }
   });
-  await processAdminOverview(adminOverview.req, adminOverview.res);
-  assert.strictEqual(adminOverview.getStatus(), 200);
-  assert.ok(adminOverview.getData().metrics, 'Overview metrics must be returned to admin');
-  console.log('   ✓ Super Admin successfully authorized to view /admin Overview metrics');
+  const studentMeRes = await processGetCurrentUser(studentMeWithAdminCookie.req);
+  assert.strictEqual(studentMeRes.status, 401, 'Student portal strictly rejects admin cookie');
+  console.log('   ✓ Admin cookie rejected by student /api/auth/me with HTTP 401');
 
-  // ----------------------------------------------------
-  // TEST 8: Student Cannot Access /admin (HTTP 403 Forbidden)
-  // ----------------------------------------------------
-  console.log('\n7. Testing Student Blocked from Admin APIs...');
-  const studentAccessAdmin = await createMockReqRes({
+  // 5c: Student cookie works for student portal
+  const studentMeReq = await createMockReqRes({
     headers: { cookie: `studypilot_session=${studentToken}` }
   });
-  await processAdminOverview(studentAccessAdmin.req, studentAccessAdmin.res);
-  assert.strictEqual(studentAccessAdmin.getStatus(), 403);
-  assert.strictEqual(studentAccessAdmin.getData().error.code, 'FORBIDDEN');
-  console.log('   ✓ Authenticated student blocked from /admin with HTTP 403 FORBIDDEN');
+  const validStudentRes = await processGetCurrentUser(studentMeReq.req);
+  assert.strictEqual(validStudentRes.status, 200);
+  assert.strictEqual(validStudentRes.body.user.role, 'student');
+  assert.strictEqual(validStudentRes.body.user.email, 'rushikesh@sgu.ac.in');
+  console.log('   ✓ Student verified via /api/auth/me using studypilot_session');
+
+  // 5d: Student cookie alone CANNOT authenticate admin /api/admin
+  const adminWithStudentCookie = await createMockReqRes({
+    headers: { cookie: `studypilot_session=${studentToken}` }
+  });
+  await processAdminOverview(adminWithStudentCookie.req, adminWithStudentCookie.res);
+  assert.ok(adminWithStudentCookie.getStatus() === 401 || adminWithStudentCookie.getStatus() === 403, 'Student cookie rejected by admin endpoints');
+  console.log('   ✓ Student cookie blocked from admin endpoints');
 
   // ----------------------------------------------------
-  // TEST 9: Unauthenticated Visitors Blocked (HTTP 401)
+  // TEST 6: Scenario C — Two Tabs Running Simultaneously in Same Browser
   // ----------------------------------------------------
-  console.log('\n8. Testing Unauthenticated Visitors Blocked...');
+  console.log('\n6. Testing Scenario C: Concurrent Two-Tab Coexistence (Zero Session Collision)...');
+  const twoTabCookieHeader = `studypilot_session=${studentToken}; studypilot_admin_session=${adminToken}`;
+
+  // Tab 1 simulates /admin request
+  const tab1AdminReq = await createMockReqRes({
+    headers: { cookie: twoTabCookieHeader }
+  });
+  await processAdminOverview(tab1AdminReq.req, tab1AdminReq.res);
+  assert.strictEqual(tab1AdminReq.getStatus(), 200);
+  assert.ok(tab1AdminReq.getData().metrics, 'Tab 1 sees full Super Admin overview');
+
+  // Tab 2 simulates student / request
+  const tab2StudentReq = await createMockReqRes({
+    headers: { cookie: twoTabCookieHeader }
+  });
+  const tab2StudentRes = await processGetCurrentUser(tab2StudentReq.req);
+  assert.strictEqual(tab2StudentRes.status, 200);
+  assert.strictEqual(tab2StudentRes.body.user.role, 'student', 'Tab 2 resolves student profile, NEVER admin layout');
+  assert.strictEqual(tab2StudentRes.body.user.email, 'rushikesh@sgu.ac.in');
+  console.log('   ✓ Two tabs running concurrently in same browser: Tab 1 is Admin, Tab 2 is Student (100% collision-free)');
+
+  // ----------------------------------------------------
+  // TEST 7: Unauthenticated Visitors Blocked from Admin (HTTP 401)
+  // ----------------------------------------------------
+  console.log('\n7. Testing Unauthenticated Visitors Blocked...');
   const unauthReq = await createMockReqRes({});
   await processAdminOverview(unauthReq.req, unauthReq.res);
   assert.strictEqual(unauthReq.getStatus(), 401);
@@ -295,10 +323,9 @@ async function runTests() {
   console.log('   ✓ Unauthenticated visitor blocked with HTTP 401 UNAUTHENTICATED');
 
   // ----------------------------------------------------
-  // TEST 10 & 11: Document Upload & Strict Student Isolation
+  // TEST 8: Document Storage & Strict Student Isolation
   // ----------------------------------------------------
-  console.log('\n9. Testing Document Storage & Cross-Student Isolation...');
-  // Student 1 uploads a document
+  console.log('\n8. Testing Document Storage & Cross-Student Isolation...');
   const studentDocPayload = {
     id: 'doc_student1_dbms',
     name: 'CS201_DBMS_Unit3_Notes.pdf',
@@ -323,7 +350,7 @@ async function runTests() {
   assert.strictEqual(uploadReq.getStatus(), 201);
   console.log('   ✓ Student 1 uploaded document into storage');
 
-  // Also sync document into adminDocs memory map
+  // Sync document into adminDocs memory map
   const rawUploaded = docMemory.get('doc_student1_dbms')!;
   adminDocs.set('doc_student1_dbms', rawUploaded);
 
@@ -365,11 +392,11 @@ async function runTests() {
   console.log('   ✓ Student 2 blocked from reading Student 1 document (HTTP 403 FORBIDDEN)');
 
   // ----------------------------------------------------
-  // TEST 12: Admin Can See ALL Students
+  // TEST 9: Admin Can See ALL Students
   // ----------------------------------------------------
-  console.log('\n10. Testing Admin Students Directory...');
+  console.log('\n9. Testing Admin Students Directory...');
   const adminUsersReq = await createMockReqRes({
-    headers: { cookie: `studypilot_session=${adminToken}` }
+    headers: { cookie: `studypilot_admin_session=${adminToken}` }
   });
   await processAdminUsers(adminUsersReq.req, adminUsersReq.res);
   assert.strictEqual(adminUsersReq.getStatus(), 200);
@@ -378,11 +405,11 @@ async function runTests() {
   console.log(`   ✓ Admin can see all students in directory (${allStudents.length} students found)`);
 
   // ----------------------------------------------------
-  // TEST 13: Admin Can See ALL Uploaded Files Across Students
+  // TEST 10: Admin Can See ALL Uploaded Files Across Students
   // ----------------------------------------------------
-  console.log('\n11. Testing Admin Global Files Repository...');
+  console.log('\n10. Testing Admin Global Files Repository...');
   const adminFilesReq = await createMockReqRes({
-    headers: { cookie: `studypilot_session=${adminToken}` }
+    headers: { cookie: `studypilot_admin_session=${adminToken}` }
   });
   await processAdminDocuments(adminFilesReq.req, adminFilesReq.res);
   assert.strictEqual(adminFilesReq.getStatus(), 200);
@@ -392,21 +419,19 @@ async function runTests() {
   console.log('   ✓ Admin can view all student-uploaded files in global repository');
 
   // ----------------------------------------------------
-  // TEST 14: Admin Can Preview & Download Original Files
+  // TEST 11: Admin Can Preview & Download Original Files
   // ----------------------------------------------------
-  console.log('\n12. Testing Admin Preview & Byte-Perfect Download...');
-  // Preview
+  console.log('\n11. Testing Admin Preview & Byte-Perfect Download...');
   const adminPreviewReq = await createMockReqRes({
-    headers: { cookie: `studypilot_session=${adminToken}` }
+    headers: { cookie: `studypilot_admin_session=${adminToken}` }
   });
   await processAdminBinaryFile(adminPreviewReq.req, adminPreviewReq.res, 'doc_student1_dbms', 'preview');
   assert.strictEqual(adminPreviewReq.getStatus(), 200);
   assert.ok(adminPreviewReq.getHeaders()['content-disposition'].includes('inline'));
   console.log('   ✓ Admin can preview student document inline');
 
-  // Download
   const adminDownloadReq = await createMockReqRes({
-    headers: { cookie: `studypilot_session=${adminToken}` }
+    headers: { cookie: `studypilot_admin_session=${adminToken}` }
   });
   await processAdminBinaryFile(adminDownloadReq.req, adminDownloadReq.res, 'doc_student1_dbms', 'download');
   assert.strictEqual(adminDownloadReq.getStatus(), 200);
@@ -417,28 +442,44 @@ async function runTests() {
   console.log('   ✓ Admin downloaded original binary file with byte-perfect fidelity');
 
   // ----------------------------------------------------
-  // TEST 15: Admin Logout Terminates Session
+  // TEST 12: Scenario D & E — Independent Logouts
   // ----------------------------------------------------
-  console.log('\n13. Testing Admin Logout...');
+  console.log('\n12. Testing Scenario D & E: Independent Logout Isolation...');
+  // Scenario D: Admin logs out in Tab 1
   const logoutReq = await createMockReqRes({
-    headers: { cookie: `studypilot_session=${adminToken}` }
+    headers: { cookie: `studypilot_session=${studentToken}; studypilot_admin_session=${adminToken}` }
   });
   await processAdminLogout(logoutReq.req, logoutReq.res);
   assert.strictEqual(logoutReq.getStatus(), 200);
-  assert.ok(logoutReq.getHeaders()['set-cookie'].includes('Max-Age=0'), 'Session cookie cleared on logout');
+  const setCookieLogout = logoutReq.getHeaders()['set-cookie'];
+  assert.ok(setCookieLogout.includes('studypilot_admin_session='), 'Admin logout clears studypilot_admin_session');
+  assert.ok(!setCookieLogout.includes('studypilot_session='), 'Admin logout DOES NOT touch studypilot_session');
 
-  // Next request with that token is rejected
+  // Next admin request rejected
   const postLogoutOverview = await createMockReqRes({
-    headers: { cookie: `studypilot_session=${adminToken}` }
+    headers: { cookie: `studypilot_admin_session=${adminToken}` }
   });
   await processAdminOverview(postLogoutOverview.req, postLogoutOverview.res);
   assert.strictEqual(postLogoutOverview.getStatus(), 401, 'Logged out admin session rejected with 401');
-  console.log('   ✓ Admin logout cleared session cookie and invalidated server token');
+
+  // BUT Tab 2 student session remains completely active and authenticated!
+  const studentStillActive = await createMockReqRes({
+    headers: { cookie: `studypilot_session=${studentToken}` }
+  });
+  const studentActiveRes = await processGetCurrentUser(studentStillActive.req);
+  assert.strictEqual(studentActiveRes.status, 200, 'Student session remains fully valid in Tab 2');
+  assert.strictEqual(studentActiveRes.body.user.email, 'rushikesh@sgu.ac.in');
+  console.log('   ✓ Scenario D passed: Admin logout terminated only admin session; Tab 2 student session stayed 100% active');
+
+  // Scenario E: Student logs out in Tab 2
+  const studentLogoutRes = await processLogout(studentToken);
+  assert.strictEqual(studentLogoutRes.status, 200);
+  console.log('   ✓ Scenario E passed: Student logout terminated student session independently');
 
   // ----------------------------------------------------
-  // TEST 16: Existing RAG & Chat System Intact
+  // TEST 13: Existing RAG & Chat System Intact
   // ----------------------------------------------------
-  console.log('\n14. Testing Chat & RAG Integrity...');
+  console.log('\n13. Testing Chat & RAG Integrity...');
   const chatPayload = {
     message: 'What is the ACID principle?',
     history: []
@@ -453,7 +494,7 @@ async function runTests() {
   }
 
   console.log('\n======================================================');
-  console.log('ALL 17 SUPER ADMIN & STORAGE SYSTEM TESTS PASSED! (100%)');
+  console.log('ALL SUPER ADMIN & STORAGE SYSTEM TESTS PASSED! (100%)');
   console.log('======================================================\n');
 }
 

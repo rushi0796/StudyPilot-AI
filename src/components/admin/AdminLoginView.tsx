@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Lock, Eye, EyeOff, Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAdminAuth } from '../../context/AdminAuthContext';
 
 interface AdminLoginViewProps {
   onSuccess?: () => void;
@@ -8,7 +8,7 @@ interface AdminLoginViewProps {
 }
 
 export const AdminLoginView: React.FC<AdminLoginViewProps> = ({ onSuccess, onBackToStudent }) => {
-  const { loginAsAdmin } = useAuth();
+  const { loginAsAdmin } = useAdminAuth();
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -142,7 +142,7 @@ export const AdminLoginView: React.FC<AdminLoginViewProps> = ({ onSuccess, onBac
 
         {/* Security badge footer */}
         <p className="text-[11px] text-center text-[#6E786B] mt-6">
-          Sanjay Ghodawat University • Department of Artificial Intelligence • Team Codex
+          StudyPilot AI • Enterprise Administration Console
         </p>
       </div>
     </div>

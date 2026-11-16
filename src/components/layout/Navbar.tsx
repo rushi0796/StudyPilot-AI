@@ -26,7 +26,6 @@ export const Navbar: React.FC = () => {
     activeView, 
     setActiveView,
     setGlobalSearchOpen,
-    setTeamModalOpen,
     setOnboardingOpen,
     notifications,
     unreadNotificationsCount,
@@ -92,11 +91,11 @@ export const Navbar: React.FC = () => {
                   StudyPilot AI
                 </span>
                 <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-forest-50 text-forest-700 border border-forest-200">
-                  Team Codex
+                  AI Platform
                 </span>
               </div>
               <p className="text-[11px] text-charcoal-400 hidden sm:block font-medium">
-                Sanjay Ghodawat University • AI Dept
+                AI-Powered Personalized Learning
               </p>
             </div>
           </button>
@@ -147,15 +146,6 @@ export const Navbar: React.FC = () => {
                 {uploadedDocuments.length}
               </span>
             )}
-          </button>
-
-          {/* Academic Showcase Pill */}
-          <button
-            onClick={() => setTeamModalOpen(true)}
-            className="hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-charcoal-700 bg-academic-bg hover:bg-sage-100 border border-[#E5E0D5] transition-colors"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-forest-600" />
-            <span>Academic Info</span>
           </button>
 
           {/* Multilingual Selector */}
@@ -392,16 +382,6 @@ export const Navbar: React.FC = () => {
                   >
                     <User className="w-3.5 h-3.5 text-forest-600" />
                     <span>Academic Profile & Settings</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setTeamModalOpen(true);
-                      setProfileDropdownOpen(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-charcoal-700 hover:bg-sage-50 hover:text-charcoal-900 cursor-pointer"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-forest-600" />
-                    <span>About Team Codex (SGU Project)</span>
                   </button>
                   <button
                     onClick={() => {

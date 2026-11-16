@@ -188,7 +188,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
         email VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255),
         name VARCHAR(255) NOT NULL,
-        university VARCHAR(255) DEFAULT 'Sanjay Ghodawat University',
+        university VARCHAR(255) DEFAULT 'University',
         course VARCHAR(255) DEFAULT 'B.Tech',
         branch VARCHAR(255) DEFAULT 'AIML',
         year VARCHAR(64) DEFAULT '2nd Year',
@@ -678,7 +678,7 @@ export async function insertUser(userData: Omit<UserRecord, 'created_at' | 'upda
       record.email,
       record.password_hash,
       record.name,
-      record.university || 'Sanjay Ghodawat University',
+      record.university || 'University',
       record.course || 'B.Tech',
       record.branch || 'AIML',
       record.year || '2nd Year',
@@ -913,7 +913,9 @@ export function getUserRole(user: UserRecord): 'student' | 'super_admin' {
 export async function authenticateRequest(req: any): Promise<UserRecord | null> {
   const token = getSessionTokenFromRequest(req);
   if (!token) return null;
-  return await findUserBySessionToken(token);
+  const user = await findUserBySessionToken(token);
+  if (!user || user.role === 'super_admin') return null;
+  return user;
 }
 
 export async function requireSuperAdmin(req: any): Promise<{ user: UserRecord } | { error: { message: string; code: string; status: number } }> {
@@ -945,7 +947,7 @@ export function toSafeUser(user: UserRecord): SafeUser {
     id: user.id,
     email: user.email,
     name: user.name,
-    university: user.university || 'Sanjay Ghodawat University',
+    university: user.university || 'University',
     course: user.course || 'B.Tech',
     branch: user.branch || 'AIML',
     year: user.year || '2nd Year',
@@ -1065,7 +1067,7 @@ export async function processSignup(body: any, clientIp = '127.0.0.1') {
   const cleanName = typeof name === 'string' ? name.trim() : '';
   const cleanEmail = typeof email === 'string' ? email.trim() : '';
   const cleanPw = typeof password === 'string' ? password : '';
-  const cleanUni = typeof university === 'string' && university.trim() ? university.trim() : 'Sanjay Ghodawat University';
+  const cleanUni = typeof university === 'string' && university.trim() ? university.trim() : 'University';
   const cleanCourse = typeof course === 'string' && course.trim() ? course.trim() : 'B.Tech';
   const cleanBranch = typeof branch === 'string' && branch.trim() ? branch.trim() : 'AIML';
   const cleanYear = typeof year === 'string' && year.trim() ? year.trim() : '2nd Year';
@@ -1349,11 +1351,11 @@ export async function processGetCurrentUser(req: any) {
 
   try {
     const user = await findUserBySessionToken(token);
-    if (!user) {
+    if (!user || user.role === 'super_admin') {
       return {
         status: 401,
         cookie: createClearSessionCookie(),
-        body: { error: { message: 'Session expired or invalidated. Please sign in again.', code: 'SESSION_EXPIRED' } }
+        body: { error: { message: 'No active student session found. Please sign in.', code: 'UNAUTHENTICATED' } }
       };
     }
 

@@ -86,7 +86,7 @@ export const AIAssistantView: React.FC = () => {
       sender: 'assistant',
       timestamp: 'Today',
       language: studentProfile.preferredLanguage,
-      content: `Hello ${studentProfile.name}! I am **StudyPilot AI**, your voice-enabled academic tutor and study assistant for Sanjay Ghodawat University **${studentProfile.branch}** (${studentProfile.semester}).
+      content: `Hello ${studentProfile.name}! I am **StudyPilot AI**, your voice-enabled academic tutor and personalized study assistant.
 
 ⚡ **Powered by Google Gemini Generative Intelligence & Web Voice Engine**:
 - Speak directly by tapping the **Microphone** button below.
@@ -366,7 +366,7 @@ Try asking or speaking:
               </span>
             </div>
             <p className="text-[11px] text-charcoal-400">
-              Department of Artificial Intelligence • Sanjay Ghodawat University
+              AI-Powered Multimodal Tutor & Voice Assistant
             </p>
           </div>
         </div>

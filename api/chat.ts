@@ -247,12 +247,12 @@ CRITICAL INSTRUCTION:
     }
   }
 
-  const targetUniversity = payload.studyContext?.university || 'Sanjay Ghodawat University (SGU)';
+  const targetUniversity = payload.studyContext?.university || 'University';
   const targetCourse = payload.studyContext?.course || 'B.Tech in Artificial Intelligence';
-  const targetBranch = payload.studyContext?.branch || 'Department of Artificial Intelligence';
+  const targetBranch = payload.studyContext?.branch || 'Department of Computer Science & AI';
   const targetSemester = payload.studyContext?.semester || 'Semester III';
 
-  let systemInstruction = `You are StudyPilot AI, an intelligent, personalized conversational study assistant in the domain of Artificial Intelligence, developed by Team Codex for college students.
+  let systemInstruction = `You are StudyPilot AI, an intelligent, personalized conversational study assistant designed for college and engineering students.
 
 Student Academic Profile:
 - University: ${targetUniversity}

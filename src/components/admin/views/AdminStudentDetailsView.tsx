@@ -12,10 +12,13 @@ import {
   FileText,
   Eye,
   Download,
-  Trash2,
   Loader2,
   AlertCircle,
-  Activity
+  Activity,
+  Laptop,
+  Smartphone,
+  ShieldCheck,
+  CheckCircle2
 } from 'lucide-react';
 
 interface StudentProfile {
@@ -47,6 +50,14 @@ interface StudentDocument {
   created_at: string;
 }
 
+interface LoginSession {
+  id: string;
+  created_at: string;
+  user_agent: string | null;
+  ip_address: string | null;
+  expires_at: string;
+}
+
 interface AdminStudentDetailsViewProps {
   studentId: string;
   onBack: () => void;
@@ -61,9 +72,10 @@ export const AdminStudentDetailsView: React.FC<AdminStudentDetailsViewProps> = (
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [documents, setDocuments] = useState<StudentDocument[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<LoginSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'documents' | 'activity'>('documents');
+  const [activeTab, setActiveTab] = useState<'documents' | 'activity' | 'sessions'>('documents');
 
   const fetchStudentData = async () => {
     setIsLoading(true);
@@ -79,6 +91,7 @@ export const AdminStudentDetailsView: React.FC<AdminStudentDetailsViewProps> = (
       setProfile(data.user);
       setDocuments(data.documents || []);
       setActivities(data.activities || []);
+      setSessions(data.loginSessions || []);
     } catch (err: any) {
       setError(err?.message || 'Failed to load student details.');
     } finally {
@@ -126,25 +139,25 @@ export const AdminStudentDetailsView: React.FC<AdminStudentDetailsViewProps> = (
 
   if (isLoading) {
     return (
-      <div className="py-24 text-center text-[#859180]">
-        <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#E2C785] mb-3" />
-        <p className="text-xs font-mono">Fetching student records and private documents from Neon PostgreSQL...</p>
+      <div className="py-24 text-center text-slate-400">
+        <Loader2 className="w-8 h-8 animate-spin mx-auto text-emerald-400 mb-3" />
+        <p className="text-xs font-mono">Fetching student records and activity history from Neon PostgreSQL...</p>
       </div>
     );
   }
 
   if (error || !profile) {
     return (
-      <div className="bg-[#242A25] border border-rose-900/60 rounded-3xl p-8 text-center space-y-4">
+      <div className="bg-slate-900 border border-rose-500/20 rounded-2xl p-8 text-center space-y-4">
         <AlertCircle className="w-10 h-10 text-rose-400 mx-auto" />
         <h2 className="text-lg font-bold text-white">Student Record Not Found</h2>
-        <p className="text-xs text-[#A0A89C] max-w-md mx-auto">{error || 'Could not locate student profile.'}</p>
+        <p className="text-xs text-slate-400 max-w-sm mx-auto">{error || 'Could not locate student profile.'}</p>
         <button
           onClick={onBack}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#2E362F] hover:bg-[#38433A] text-white border border-[#404D41] transition-all cursor-pointer"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 hover:bg-slate-700 transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Return to Students Directory</span>
+          <span>Back to Students Directory</span>
         </button>
       </div>
     );
@@ -156,232 +169,283 @@ export const AdminStudentDetailsView: React.FC<AdminStudentDetailsViewProps> = (
       <div>
         <button
           onClick={onBack}
-          className="inline-flex items-center gap-2 text-xs font-bold text-[#A0A89C] hover:text-white transition-colors cursor-pointer"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition-colors cursor-pointer"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to All Students</span>
+          <ArrowLeft className="w-3.5 h-3.5 text-slate-400" />
+          <span>Back to Students</span>
         </button>
       </div>
 
       {/* Student Profile Card */}
-      <div className="bg-[#242A25] border border-[#374138] rounded-3xl p-6 sm:p-8 shadow-xl text-white">
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 text-slate-100">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#2D362E] to-[#1E231F] border border-[#3E4D40] text-[#E2C785] flex items-center justify-center font-bold text-xl font-mono shadow-md">
-              {profile.name.slice(0, 2).toUpperCase()}
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-lg flex-shrink-0">
+              {profile.name.charAt(0).toUpperCase()}
             </div>
             <div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-                  {profile.name}
-                </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-950/60 text-emerald-300 border border-emerald-800">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h1 className="text-xl font-bold text-white tracking-tight">{profile.name}</h1>
+                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                   Student Account
                 </span>
                 {profile.onboardingCompleted && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-950/60 text-blue-300 border border-blue-800">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
                     Onboarded
                   </span>
                 )}
               </div>
 
-              <div className="flex items-center gap-4 mt-2 text-xs text-[#A0A89C] flex-wrap font-mono">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 mt-2 font-mono">
                 <span className="flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5 text-[#859180]" />
+                  <Mail className="w-3.5 h-3.5 text-slate-500" />
                   {profile.email}
                 </span>
-                <span className="text-[#566054]">•</span>
-                <span className="text-[#859180]">ID: {profile.id}</span>
+                <span>•</span>
+                <span>ID: {profile.id.substring(0, 16)}...</span>
               </div>
 
-              <div className="flex items-center gap-3 mt-3 text-xs text-[#D5DCD2] flex-wrap">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#1A1F1B] border border-[#364237]">
-                  <GraduationCap className="w-3.5 h-3.5 text-[#E2C785]" />
+              <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">
+                <span className="px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700/60 text-slate-300">
                   {profile.course || 'B.Tech'} — {profile.branch || 'AIML'}
                 </span>
-                <span className="px-3 py-1 rounded-xl bg-[#1A1F1B] border border-[#364237] text-[#A0A89C]">
+                <span className="px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700/60 text-slate-300">
                   {profile.year || '2nd Year'} • {profile.semester || 'Semester III'}
                 </span>
-                <span className="px-3 py-1 rounded-xl bg-[#1A1F1B] border border-[#364237] text-[#A0A89C]">
-                  {profile.university || 'Sanjay Ghodawat University'}
+                <span className="px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700/60 text-slate-300">
+                  {profile.university || 'University'}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="text-left sm:text-right flex-shrink-0 text-xs text-[#859180]">
+          <div className="text-left sm:text-right flex-shrink-0 text-xs text-slate-400 font-mono">
             <div className="flex items-center sm:justify-end gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-[#6E786B]" />
+              <Calendar className="w-3.5 h-3.5 text-slate-500" />
               <span>Joined: {formatDate(profile.createdAt)}</span>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* 3 Metric Cards for this student */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-[#242A25] border border-[#374138] p-5 rounded-2xl">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-[#A0A89C]">Uploaded Documents</span>
-            <FolderOpen className="w-4 h-4 text-[#66C296]" />
+        {/* Aggregate Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-800/80">
+          <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+            <div className="text-[11px] text-slate-400">Total Uploaded Files</div>
+            <div className="text-lg font-bold font-mono text-slate-100 mt-0.5">{documents.length}</div>
           </div>
-          <div className="text-2xl font-black text-white font-mono">{documents.length}</div>
-          <p className="text-[11px] text-[#6E786B] mt-1">Study materials in private storage</p>
-        </div>
-
-        <div className="bg-[#242A25] border border-[#374138] p-5 rounded-2xl">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-[#A0A89C]">Processed & Indexed</span>
-            <FileCheck2 className="w-4 h-4 text-emerald-400" />
+          <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+            <div className="text-[11px] text-slate-400">Storage Consumed</div>
+            <div className="text-lg font-bold font-mono text-emerald-400 mt-0.5">{formatBytes(profile.storageConsumed)}</div>
           </div>
-          <div className="text-2xl font-black text-white font-mono">
-            {documents.filter(d => d.processing_status === 'indexed' || d.upload_status === 'completed').length}
+          <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+            <div className="text-[11px] text-slate-400">Quiz / Evals Done</div>
+            <div className="text-lg font-bold font-mono text-blue-400 mt-0.5">{activities.length}</div>
           </div>
-          <p className="text-[11px] text-[#6E786B] mt-1">Semantic RAG ready chunks</p>
-        </div>
-
-        <div className="bg-[#242A25] border border-[#374138] p-5 rounded-2xl">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-[#A0A89C]">Storage Consumed</span>
-            <HardDrive className="w-4 h-4 text-[#85B7E2]" />
+          <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+            <div className="text-[11px] text-slate-400">Active Login Sessions</div>
+            <div className="text-lg font-bold font-mono text-purple-400 mt-0.5">{sessions.length}</div>
           </div>
-          <div className="text-2xl font-black text-white font-mono">
-            {formatBytes(documents.reduce((acc, d) => acc + (d.size || 0), 0))}
-          </div>
-          <p className="text-[11px] text-[#6E786B] mt-1">PostgreSQL binary payload footprint</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 border-b border-[#374138] pb-3">
+      <div className="flex items-center gap-2 border-b border-slate-800">
         <button
           onClick={() => setActiveTab('documents')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center gap-2 pb-3 px-3 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
             activeTab === 'documents'
-              ? 'bg-[#E2C785] text-charcoal-900 shadow-md'
-              : 'text-[#A0A89C] hover:text-white bg-[#242A25]'
+              ? 'border-emerald-400 text-emerald-400'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          Uploaded Documents ({documents.length})
+          <FolderOpen className="w-4 h-4" />
+          <span>Uploaded Documents ({documents.length})</span>
         </button>
+
         <button
           onClick={() => setActiveTab('activity')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center gap-2 pb-3 px-3 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
             activeTab === 'activity'
-              ? 'bg-[#E2C785] text-charcoal-900 shadow-md'
-              : 'text-[#A0A89C] hover:text-white bg-[#242A25]'
+              ? 'border-emerald-400 text-emerald-400'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          Learning Activity Logs ({activities.length})
+          <Activity className="w-4 h-4" />
+          <span>Learning Activity ({activities.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('sessions')}
+          className={`flex items-center gap-2 pb-3 px-3 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+            activeTab === 'sessions'
+              ? 'border-emerald-400 text-emerald-400'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Clock className="w-4 h-4" />
+          <span>Login History & Devices ({sessions.length})</span>
         </button>
       </div>
 
       {/* Tab 1: Uploaded Documents */}
       {activeTab === 'documents' && (
-        <div className="bg-[#242A25] border border-[#374138] rounded-3xl overflow-hidden shadow-xl">
-          <div className="p-5 border-b border-[#343E35]">
-            <h3 className="text-sm font-bold text-white">Student Document Repository</h3>
-            <p className="text-xs text-[#A0A89C]">
-              Files uploaded exclusively by this student. Super Admin can preview extracted text, inspect semantic RAG chunks, or download the original file.
-            </p>
-          </div>
+        <div className="space-y-3">
+          {documents.length === 0 ? (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center text-slate-400">
+              <FolderOpen className="w-8 h-8 mx-auto text-slate-600 mb-2" />
+              <p className="text-xs">No documents uploaded by this student yet.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {documents.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between space-y-3 hover:border-slate-700 transition-all"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-semibold text-white truncate" title={doc.name}>
+                          {doc.name}
+                        </h4>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono mt-0.5">
+                          <span>{formatBytes(doc.size)}</span>
+                          <span>•</span>
+                          <span>{doc.chunk_count || 0} chunks</span>
+                          <span>•</span>
+                          <span>{doc.word_count || 0} words</span>
+                        </div>
+                      </div>
+                    </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-[#343E35] bg-[#1E231F] text-[11px] font-bold text-[#A0A89C] uppercase tracking-wider">
-                  <th className="py-3 px-5">Document Name</th>
-                  <th className="py-3 px-4">Type</th>
-                  <th className="py-3 px-4">Size</th>
-                  <th className="py-3 px-4">RAG Status</th>
-                  <th className="py-3 px-4">Chunks</th>
-                  <th className="py-3 px-4">Uploaded</th>
-                  <th className="py-3 px-5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#2F3830] text-xs">
-                {documents.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-[#859180]">
-                      This student has not uploaded any study materials yet.
-                    </td>
-                  </tr>
-                ) : (
-                  documents.map((doc) => (
-                    <tr key={doc.id} className="hover:bg-[#2A322B] transition-colors">
-                      <td className="py-3.5 px-5">
-                        <div className="flex items-center gap-2.5">
-                          <FileText className="w-4 h-4 text-[#66C296] flex-shrink-0" />
-                          <span className="font-bold text-white">{doc.name}</span>
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 font-mono uppercase text-[#A0A89C] text-[11px]">
-                        {doc.type}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-white text-xs">
-                        {formatBytes(doc.size)}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-950/60 text-emerald-300 border border-emerald-800">
-                          {doc.processing_status || 'indexed'}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-white">
-                        {doc.chunk_count || 0}
-                      </td>
-                      <td className="py-3.5 px-4 text-[#859180] font-mono text-[11px]">
-                        {formatDate(doc.created_at)}
-                      </td>
-                      <td className="py-3.5 px-5 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => onInspectDocument(doc.id, doc.name)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#2E362F] hover:bg-[#39443B] text-white border border-[#404D41] transition-colors cursor-pointer"
-                            title="Inspect Chunks and Text"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-[#E2C785]" />
-                            <span>Inspect</span>
-                          </button>
-                          <button
-                            onClick={() => handleDownload(doc.id, doc.name)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#2E362F] hover:bg-[#39443B] text-white border border-[#404D41] transition-colors cursor-pointer"
-                            title="Download Original File"
-                          >
-                            <Download className="w-3.5 h-3.5 text-[#66C296]" />
-                            <span>Download</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 capitalize">
+                      {doc.processing_status || 'indexed'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-800/80 text-xs">
+                    <span className="text-[11px] font-mono text-slate-500">
+                      {formatDate(doc.created_at)}
+                    </span>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => onInspectDocument(doc.id, doc.name)}
+                        className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors"
+                      >
+                        Inspect RAG
+                      </button>
+                      <button
+                        onClick={() => handleDownload(doc.id, doc.name)}
+                        className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                        title="Download Original File"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Tab 2: Activity Logs */}
+      {/* Tab 2: Learning Activity */}
       {activeTab === 'activity' && (
-        <div className="bg-[#242A25] border border-[#374138] rounded-3xl p-6 shadow-xl">
-          <h3 className="text-sm font-bold text-white mb-4">Student Activity Summary</h3>
+        <div className="space-y-3">
           {activities.length === 0 ? (
-            <p className="text-xs text-[#859180] py-6 text-center">
-              No quiz or evaluation activity recorded for this student yet.
-            </p>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center text-slate-400">
+              <Activity className="w-8 h-8 mx-auto text-slate-600 mb-2" />
+              <p className="text-xs">No learning activity or quiz attempts recorded for this student yet.</p>
+            </div>
           ) : (
-            <div className="divide-y divide-[#323B33]">
+            <div className="space-y-2">
               {activities.map((act) => (
-                <div key={act.id} className="py-3 flex items-start justify-between gap-4">
-                  <div>
-                    <span className="font-bold text-white text-xs">{act.title || act.activity_type}</span>
-                    <p className="text-[11px] text-[#A0A89C] mt-0.5">{act.description}</p>
+                <div
+                  key={act.id}
+                  className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 flex items-center justify-between gap-4 text-xs"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-slate-100 truncate">{act.title || act.action || 'Activity'}</div>
+                      <div className="text-[11px] text-slate-400">{act.details || act.description || 'Completed module evaluation'}</div>
+                    </div>
                   </div>
-                  <span className="text-[10px] text-[#859180] font-mono flex-shrink-0">
+
+                  <span className="text-[11px] font-mono text-slate-500 whitespace-nowrap">
                     {formatDate(act.created_at)}
                   </span>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 3: Login History & Device Sessions */}
+      {activeTab === 'sessions' && (
+        <div className="space-y-3">
+          {sessions.length === 0 ? (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center text-slate-400">
+              <Clock className="w-8 h-8 mx-auto text-slate-600 mb-2" />
+              <p className="text-xs">No active or historical login sessions found in database.</p>
+            </div>
+          ) : (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="text-slate-400 border-b border-slate-800 bg-slate-950/40">
+                    <th className="py-3 px-4 font-medium">Session Timestamp</th>
+                    <th className="py-3 px-4 font-medium">Device / User Agent</th>
+                    <th className="py-3 px-4 font-medium">IP Address</th>
+                    <th className="py-3 px-4 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+                  {sessions.map((sess, idx) => {
+                    const isMobile = sess.user_agent && /mobile|android|iphone|ipad/i.test(sess.user_agent);
+                    const isExpired = new Date(sess.expires_at).getTime() < Date.now();
+                    return (
+                      <tr key={sess.id || idx} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3 px-4 text-slate-300 whitespace-nowrap">
+                          {formatDate(sess.created_at)}
+                        </td>
+                        <td className="py-3 px-4 text-slate-300 font-sans">
+                          <div className="flex items-center gap-2">
+                            {isMobile ? (
+                              <Smartphone className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+                            ) : (
+                              <Laptop className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                            )}
+                            <span className="truncate max-w-[280px]" title={sess.user_agent || 'Unknown browser'}>
+                              {sess.user_agent || 'Standard Web Browser'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-slate-400">
+                          {sess.ip_address || '127.0.0.1'}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            !isExpired
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : 'bg-slate-800 text-slate-400'
+                          }`}>
+                            {!isExpired ? 'Active Session' : 'Expired'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

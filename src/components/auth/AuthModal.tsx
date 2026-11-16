@@ -38,7 +38,7 @@ export const AuthModal: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
-  const [university, setUniversity] = useState('Sanjay Ghodawat University');
+  const [university, setUniversity] = useState('Engineering & Technology University');
   const [course, setCourse] = useState('B.Tech');
   const [branch, setBranch] = useState('Artificial Intelligence & Machine Learning');
   const [year, setYear] = useState('2nd Year');
@@ -85,7 +85,7 @@ export const AuthModal: React.FC = () => {
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(cleanEmail)) {
-      setFormError('Please enter a valid email address (e.g. student@sgu.ac.in).');
+      setFormError('Please enter a valid email address (e.g. student@university.edu).');
       return false;
     }
 
@@ -229,7 +229,7 @@ export const AuthModal: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-charcoal-500 font-medium">
-                Sanjay Ghodawat University • Team Codex
+                AI-Powered Personalized Learning Platform
               </p>
             </div>
           </div>
@@ -462,7 +462,7 @@ export const AuthModal: React.FC = () => {
                       maxLength={VALIDATION_LIMITS.EMAIL_MAX}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="student@sgu.ac.in"
+                      placeholder="student@university.edu"
                       className="w-full pl-10 pr-4 py-2.5 text-xs bg-academic-bg border border-[#E5E0D5] rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-forest-500 transition-all font-medium text-charcoal-900"
                       disabled={isSubmitting}
                     />

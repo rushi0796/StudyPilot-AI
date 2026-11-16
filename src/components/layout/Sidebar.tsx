@@ -162,24 +162,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </nav>
 
-        {/* Academic Project Watermark */}
+        {/* Platform Status */}
         <div className="p-3 border-t border-[#E5E0D5] bg-[#FDFCF9]">
           {!collapsed ? (
             <div className="p-2.5 rounded-xl bg-sage-50 border border-forest-100 text-[11px]">
               <div className="flex items-center gap-1.5 font-bold text-forest-800">
                 <Shield className="w-3.5 h-3.5 text-forest-600" />
-                <span>Sanjay Ghodawat Univ.</span>
+                <span>StudyPilot AI</span>
               </div>
               <p className="text-[10px] text-charcoal-400 mt-0.5">
-                Team Codex • 2nd Yr AI
+                Personalized Learning Platform
               </p>
               <div className="mt-2 pt-1.5 border-t border-forest-100 flex items-center justify-between text-[10px] text-charcoal-400">
-                <span className="text-forest-700 font-semibold">● Academic Prototype</span>
-                <span className="font-mono">v1.2.0</span>
+                <span className="text-forest-700 font-semibold">● Active Platform</span>
+                <span className="font-mono">v2.5.0</span>
               </div>
             </div>
           ) : (
-            <div className="flex justify-center text-forest-600" title="SGU • Team Codex">
+            <div className="flex justify-center text-forest-600" title="StudyPilot AI">
               <Shield className="w-4 h-4" />
             </div>
           )}

@@ -11,7 +11,7 @@ interface StudyPilotLoaderProps {
 
 export const StudyPilotLoader: React.FC<StudyPilotLoaderProps> = ({
   message = 'Preparing your learning workspace…',
-  subMessage = 'Sanjay Ghodawat University • Team Codex',
+  subMessage = 'AI-Powered Personalized Learning Platform',
   fullScreen = true,
   onRetry,
   onBypass

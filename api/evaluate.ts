@@ -67,7 +67,7 @@ export default async function handler(req: any, res: any) {
         documentChunks.map((c: any) => c.content).slice(0, 3).join('\n---\n');
     }
 
-    const prompt = `You are a strict, fair engineering professor grading an examination at Sanjay Ghodawat University.
+    const prompt = `You are a strict, fair engineering professor grading a university examination.
 Question: "${question}"
 Max Marks: ${maxMarks || 5}
 University Marking Criteria:
@@ -89,7 +89,7 @@ Respond with ONLY valid JSON with this exact structure:
   "missingPoints": ["<Crucial missing point 1 and marks lost>", "<Point 2>"],
   "conceptualErrors": ["<Any factual error or misconception, if none return empty array>"],
   "structureClarityFeedback": "<Paragraph evaluating presentation, formatting, and notation>",
-  "actionableImprovements": ["<Actionable tip 1 for SGU exams>", "<Tip 2>", "<Tip 3>"],
+  "actionableImprovements": ["<Actionable tip 1 for semester exams>", "<Tip 2>", "<Tip 3>"],
   "improvedSampleAnswer": "<A concise model answer that would receive full marks>"
 }
 Respond with valid JSON only.`;
@@ -138,7 +138,7 @@ Respond with valid JSON only.`;
           conceptualErrors: [],
           structureClarityFeedback: 'Clear presentation, structured academic terminology.',
           actionableImprovements: ['Include standard normalization formalisms in final exam.'],
-          improvedSampleAnswer: 'Refer to complete model answer in the SGU Question Bank.'
+          improvedSampleAnswer: 'Refer to complete model answer in the course materials.'
         };
       }
     }

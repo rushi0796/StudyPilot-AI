@@ -89,7 +89,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
         email VARCHAR(255) NOT NULL UNIQUE,
         password_hash VARCHAR(255),
         name VARCHAR(255) NOT NULL,
-        university VARCHAR(255) DEFAULT 'Sanjay Ghodawat University',
+        university VARCHAR(255) DEFAULT 'University',
         course VARCHAR(255) DEFAULT 'B.Tech',
         branch VARCHAR(255) DEFAULT 'AIML',
         year VARCHAR(64) DEFAULT '2nd Year',
@@ -161,16 +161,15 @@ export async function ensureDatabaseSchema(): Promise<void> {
   }
 }
 
-export function getSessionTokenFromRequest(req: any): string | null {
+export const ADMIN_SESSION_COOKIE_NAME = 'studypilot_admin_session';
+
+export function getAdminSessionTokenFromRequest(req: any): string | null {
   const cookieHeader = req?.headers?.cookie || req?.headers?.Cookie || '';
   if (cookieHeader) {
     try {
       const parsed = parseCookie(cookieHeader);
-      if (parsed['studypilot_session']) {
-        return parsed['studypilot_session'];
-      }
-      if (parsed['studypilot_admin_token']) {
-        return parsed['studypilot_admin_token'];
+      if (parsed[ADMIN_SESSION_COOKIE_NAME]) {
+        return parsed[ADMIN_SESSION_COOKIE_NAME];
       }
     } catch {}
   }
@@ -180,6 +179,9 @@ export function getSessionTokenFromRequest(req: any): string | null {
   }
   return null;
 }
+
+// Retain getSessionTokenFromRequest for internal backwards-compatibility pointing strictly to admin cookie
+export const getSessionTokenFromRequest = getAdminSessionTokenFromRequest;
 
 export function hashSessionToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -484,10 +486,10 @@ export async function processAdminLogin(req: any, res: any) {
     });
   }
 
-  // Set secure HTTP-only cookies
+  // Set secure HTTP-only cookies exclusively for admin
   const isProd = process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL);
   const cookieFlags = [
-    `studypilot_session=${sessionToken}`,
+    `${ADMIN_SESSION_COOKIE_NAME}=${sessionToken}`,
     'Path=/',
     'HttpOnly',
     'SameSite=Lax',
@@ -522,7 +524,7 @@ export async function processAdminLogin(req: any, res: any) {
 /**
  * Dedicated Admin Logout Action:
  * - Invalidates session in database
- * - Clears session cookie
+ * - Clears ONLY the admin session cookie
  * - Records audit log
  */
 export async function processAdminLogout(req: any, res: any) {
@@ -540,11 +542,12 @@ export async function processAdminLogout(req: any, res: any) {
 
   const isProd = process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL);
   const clearCookie = [
-    'studypilot_session=',
+    `${ADMIN_SESSION_COOKIE_NAME}=`,
     'Path=/',
     'HttpOnly',
     'SameSite=Lax',
     'Max-Age=0',
+    'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
     isProd ? 'Secure' : ''
   ].filter(Boolean).join('; ');
 
@@ -671,7 +674,12 @@ export async function processAdminOverview(req: any, res: any) {
     for (const d of memoryDocuments.values()) {
       totalUploadedDocuments++;
       totalStorageConsumed += (d.size || 0);
-      if (d.processing_status === 'indexed' || d.upload_status === 'completed') totalDocumentsProcessed++;
+      if (
+        d.processing_status === 'indexed' || 
+        d.upload_status === 'completed' || 
+        d.processingStatus === 'indexed' || 
+        d.uploadStatus === 'completed'
+      ) totalDocumentsProcessed++;
       recentDocuments.push(d);
     }
     recentActivity = Array.from(memoryAuditLogs.values()).slice(0, 6);
@@ -712,7 +720,7 @@ export async function processAdminUsers(req: any, res: any) {
           id: u.id,
           name: u.name,
           email: u.email,
-          university: u.university || 'Sanjay Ghodawat University',
+          university: u.university || 'University',
           course: u.course || 'B.Tech',
           branch: u.branch || 'AIML',
           year: u.year || '2nd Year',
@@ -790,6 +798,7 @@ export async function processAdminUserDetail(req: any, res: any, userId: string)
     let student: any = null;
     let documents: any[] = [];
     let activities: any[] = [];
+    let loginSessions: any[] = [];
 
     if (isNeonConfigured()) {
       await ensureDatabaseSchema();
@@ -814,10 +823,32 @@ export async function processAdminUserDetail(req: any, res: any, userId: string)
             [userId]
           );
         } catch {}
+
+        // Fetch student login history sessions
+        try {
+          loginSessions = await queryNeon<any>(
+            `SELECT id, created_at, user_agent, ip_address, expires_at
+             FROM studypilot_sessions
+             WHERE user_id = $1
+             ORDER BY created_at DESC
+             LIMIT 15;`,
+            [userId]
+          );
+        } catch {}
       }
     } else {
       student = memoryUsers.get(userId);
       documents = Array.from(memoryDocuments.values()).filter(d => d.user_id === userId);
+      for (const [hash, sess] of memorySessions.entries()) {
+        if (sess.user_id === userId) {
+          loginSessions.push({
+            id: hash.substring(0, 16),
+            created_at: new Date().toISOString(),
+            ip_address: sess.ip_address || '127.0.0.1',
+            user_agent: 'Local Development Browser'
+          });
+        }
+      }
     }
 
     if (!student) {
@@ -856,7 +887,8 @@ export async function processAdminUserDetail(req: any, res: any, userId: string)
         storageConsumed: totalStorage
       },
       documents,
-      activities
+      activities,
+      loginSessions
     });
   } catch (err: any) {
     return res.status(500).json({ error: { message: err?.message, code: 'DB_ERROR', status: 500 } });

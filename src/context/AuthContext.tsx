@@ -99,7 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (response.ok) {
         const data = await response.json();
-        if (data?.user) {
+        if (data?.user && data.user.role !== 'super_admin') {
           setCurrentUser(data.user);
           return data.user;
         }
@@ -288,7 +288,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (data?.user) {
-        setCurrentUser(data.user);
+        // Do NOT overwrite student currentUser! Admin session is stored separately in studypilot_admin_session
         closeAuthModal();
         return { success: true };
       }
@@ -300,7 +300,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [closeAuthModal]);
 
   /**
-   * Super Admin Logout
+   * Super Admin Logout (Clears admin session cookie only)
    */
   const adminLogout = useCallback(async (): Promise<void> => {
     try {
@@ -311,9 +311,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     } catch (err) {
       console.warn('Admin logout API call failed:', err);
-    } finally {
-      setCurrentUser(null);
     }
+    // Student currentUser remains untouched
   }, []);
 
   /**

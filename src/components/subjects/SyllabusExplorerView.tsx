@@ -70,7 +70,7 @@ export const SyllabusExplorerView: React.FC = () => {
               'Understand the structural invariants from syllabus notes',
               'Analyze mathematical and engineering trade-offs'
             ],
-            importantConcepts: ['Formal Definitions', 'Invariants', 'SGU Exam Weightage'],
+            importantConcepts: ['Formal Definitions', 'Invariants', 'Exam Weightage'],
             status: 'not-started',
             weightageMarks: 5
           },
@@ -191,7 +191,7 @@ export const SyllabusExplorerView: React.FC = () => {
         <AlertCircle className="w-4 h-4 text-forest-600 flex-shrink-0 mt-0.5" />
         <div>
           <span className="font-bold text-charcoal-900">Curriculum Structure: </span>
-          Syllabus units and marks weightages are aligned with Sanjay Ghodawat University 2nd-Year AI curriculum. You can also upload your own course handouts (.pdf, .docx, .md) to extract and append new custom units.
+          Syllabus units and marks weightages are organized by academic engineering curriculum standards. You can also upload your own course handouts (.pdf, .docx, .md) to extract and append new custom units.
         </div>
       </div>
 
@@ -352,7 +352,7 @@ export const SyllabusExplorerView: React.FC = () => {
               {/* Important Exam Concepts */}
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-charcoal-400 mb-2">
-                  Key Concepts for Sanjay Ghodawat University Exams
+                  Key Concepts for Semester Examinations
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {activeTopic.importantConcepts.map((c, i) => (
@@ -410,7 +410,7 @@ export const SyllabusExplorerView: React.FC = () => {
             </div>
 
             <p className="text-xs text-charcoal-400 mt-2">
-              Upload your official Sanjay Ghodawat University Course Handout or notes file (.pdf, .docx, .md). The parser will automatically extract units, topics, and exam weightage!
+              Upload your course handout or notes file (.pdf, .docx, .md). The parser will automatically extract units, topics, and exam weightage!
             </p>
 
             <div 

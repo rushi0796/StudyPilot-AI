@@ -159,8 +159,8 @@ export const DashboardView: React.FC = () => {
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-forest-100 text-forest-800 border border-forest-200">
                   Domain: Artificial Intelligence
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gold-100 text-gold-700 border border-gold-200">
-                  Team Codex • SGU
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-forest-100 text-forest-700 border border-forest-200">
+                  Personalized Learning
                 </span>
               </div>
               <p className="text-xs text-charcoal-600 mt-0.5">

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { AdminAuthProvider, useAdminAuth } from './context/AdminAuthContext';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
 import { AcademicHeaderBanner } from './components/layout/AcademicHeaderBanner';
 import { Footer } from './components/layout/Footer';
 import { GlobalSearchModal } from './components/layout/GlobalSearchModal';
-import { TeamCodexModal } from './components/layout/TeamCodexModal';
 import { OnboardingModal } from './components/onboarding/OnboardingModal';
 import { AuthModal } from './components/auth/AuthModal';
 
@@ -24,44 +24,37 @@ import { LearningProgressView } from './components/progress/LearningProgressView
 import { SettingsView } from './components/settings/SettingsView';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { AdminLoginView } from './components/admin/AdminLoginView';
-import { Menu, ShieldAlert } from 'lucide-react';
+import { Menu, ShieldCheck } from 'lucide-react';
 import { StudyPilotLoader } from './components/common/StudyPilotLoader';
 import { FloatingVoiceButton } from './components/voice/FloatingVoiceButton';
 import { VoiceCallModal } from './components/voice/VoiceCallModal';
 
-const AppContent: React.FC = () => {
-  const { activeView } = useApp();
-  const { currentUser, isLoading, bypassLoading } = useAuth();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [voiceCallOpen, setVoiceCallOpen] = useState(false);
-  const [currentPath, setCurrentPath] = useState<string>(() =>
-    typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '/'
-  );
+/**
+ * 1. Dedicated Super Admin Portal
+ * Completely isolated from Student context, state, and cookies.
+ */
+const AdminPortal: React.FC<{ currentPath: string; onNavigate: (path: string) => void }> = ({
+  currentPath,
+  onNavigate
+}) => {
+  const { adminUser, isAdminLoading } = useAdminAuth();
 
-  useEffect(() => {
-    const handleLocationChange = () => {
-      if (typeof window !== 'undefined') {
-        setCurrentPath(window.location.pathname.toLowerCase());
-      }
-    };
-    window.addEventListener('popstate', handleLocationChange);
-    return () => window.removeEventListener('popstate', handleLocationChange);
-  }, []);
-
-  if (isLoading) {
+  if (isAdminLoading) {
     return (
-      <StudyPilotLoader
-        message="Preparing your learning workspace…"
-        subMessage="Sanjay Ghodawat University • Team Codex"
-        onBypass={bypassLoading}
-      />
+      <div className="min-h-screen bg-[#0F172A] text-slate-200 flex flex-col justify-center items-center p-6 font-sans">
+        <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center animate-pulse mb-3">
+          <ShieldCheck className="w-6 h-6" />
+        </div>
+        <div className="text-xs font-mono text-slate-400 uppercase tracking-widest">
+          Authenticating Super Admin Console…
+        </div>
+      </div>
     );
   }
 
-  // 1. Dedicated Admin Login Route (/admin-login)
+  // Handle /admin-login
   if (currentPath === '/admin-login') {
-    if (currentUser?.role === 'super_admin') {
+    if (adminUser) {
       if (typeof window !== 'undefined') {
         window.history.replaceState({}, '', '/admin');
       }
@@ -69,76 +62,55 @@ const AppContent: React.FC = () => {
     }
     return (
       <AdminLoginView
-        onSuccess={() => {
-          setCurrentPath('/admin');
-        }}
+        onSuccess={() => onNavigate('/admin')}
         onBackToStudent={() => {
           if (typeof window !== 'undefined') {
-            window.history.pushState({}, '', '/');
+            window.location.href = '/';
           }
-          setCurrentPath('/');
         }}
       />
     );
   }
 
-  // 2. Protected Administration Routes (/admin, /admin/*)
-  if (currentPath.startsWith('/admin')) {
-    // Authenticated Super Admin -> render dedicated AdminLayout
-    if (currentUser?.role === 'super_admin') {
-      return <AdminLayout />;
-    }
-
-    // Authenticated Student -> block access with clear error
-    if (currentUser?.role === 'student') {
-      return (
-        <div className="min-h-screen bg-[#F7F5EF] flex flex-col justify-center items-center p-6 text-center">
-          <div className="bg-white p-8 rounded-3xl border border-[#E5E0D5] shadow-xl max-w-md space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto">
-              <ShieldAlert className="w-6 h-6" />
-            </div>
-            <h2 className="text-xl font-extrabold text-charcoal-900 tracking-tight">Access Restricted</h2>
-            <p className="text-xs text-charcoal-600 leading-relaxed">
-              Super Admin authorization is required to access this control plane. Your account (<span className="font-mono font-bold text-charcoal-800">{currentUser.email}</span>) has student privileges.
-            </p>
-            <button
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  window.history.pushState({}, '', '/');
-                }
-                setCurrentPath('/');
-              }}
-              className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-forest-600 text-white hover:bg-forest-700 transition-colors cursor-pointer"
-            >
-              Return to Student Dashboard
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    // Unauthenticated visitor -> show dedicated Admin Login
-    return (
-      <AdminLoginView
-        onSuccess={() => {
-          setCurrentPath('/admin');
-        }}
-        onBackToStudent={() => {
-          if (typeof window !== 'undefined') {
-            window.history.pushState({}, '', '/');
-          }
-          setCurrentPath('/');
-        }}
-      />
-    );
-  }
-
-  // 3. If authenticated as Super Admin on any route -> render AdminLayout exclusively!
-  if (currentUser?.role === 'super_admin') {
+  // Handle /admin and /admin/*
+  if (adminUser) {
     return <AdminLayout />;
   }
 
-  // 4. Standard Student Application Layout
+  // If unauthenticated on /admin, display Admin Login View
+  return (
+    <AdminLoginView
+      onSuccess={() => onNavigate('/admin')}
+      onBackToStudent={() => {
+        if (typeof window !== 'undefined') {
+          window.location.href = '/';
+        }
+      }}
+    />
+  );
+};
+
+/**
+ * 2. Dedicated Student Learning Portal
+ * Completely isolated from Admin context, state, and cookies.
+ */
+const StudentPortalContent: React.FC = () => {
+  const { activeView } = useApp();
+  const { isLoading, bypassLoading } = useAuth();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [voiceCallOpen, setVoiceCallOpen] = useState(false);
+
+  if (isLoading) {
+    return (
+      <StudyPilotLoader
+        message="Preparing your learning workspace…"
+        subMessage="AI-Powered Personalized Learning Platform"
+        onBypass={bypassLoading}
+      />
+    );
+  }
+
   const renderActiveView = () => {
     switch (activeView) {
       case 'dashboard': return <DashboardView />;
@@ -193,7 +165,7 @@ const AppContent: React.FC = () => {
         </main>
       </div>
 
-      {/* University & Team Codex Footer */}
+      {/* Professional SaaS Product Footer */}
       <Footer />
 
       {/* Real-time AI Voice Call Launcher & Modal */}
@@ -202,18 +174,53 @@ const AppContent: React.FC = () => {
 
       {/* Modals */}
       <GlobalSearchModal />
-      <TeamCodexModal />
       <OnboardingModal />
       <AuthModal />
     </div>
   );
 };
 
+/**
+ * 3. Root Application Router
+ * Provides strict separation of contexts based on URL pathname.
+ */
 export default function App() {
+  const [currentPath, setCurrentPath] = useState<string>(() =>
+    typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '/'
+  );
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      if (typeof window !== 'undefined') {
+        setCurrentPath(window.location.pathname.toLowerCase());
+      }
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
+
+  const isAdminRoute = currentPath === '/admin-login' || currentPath.startsWith('/admin');
+
+  if (isAdminRoute) {
+    return (
+      <AdminAuthProvider>
+        <AdminPortal
+          currentPath={currentPath}
+          onNavigate={(path) => {
+            if (typeof window !== 'undefined') {
+              window.history.pushState({}, '', path);
+            }
+            setCurrentPath(path);
+          }}
+        />
+      </AdminAuthProvider>
+    );
+  }
+
   return (
     <AuthProvider>
       <AppProvider>
-        <AppContent />
+        <StudentPortalContent />
       </AppProvider>
     </AuthProvider>
   );

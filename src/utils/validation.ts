@@ -170,7 +170,7 @@ export function validateEmailField(email: unknown): ValidationResult {
   if (!emailRegex.test(clean)) {
     return {
       valid: false,
-      error: 'Please enter a valid email address (e.g. student@sgu.ac.in).',
+      error: 'Please enter a valid email address (e.g. student@university.edu).',
       count,
       max: VALIDATION_LIMITS.EMAIL_MAX
     };

@@ -536,7 +536,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       {
         id: 'demo-3',
         title: '[DEMO] Study Streak Active',
-        message: '4-day continuous study streak maintained for SGU Semester III exams.',
+        message: '4-day continuous study streak maintained for semester preparation.',
         time: 'Yesterday',
         type: 'success'
       }

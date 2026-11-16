@@ -130,7 +130,7 @@ export const PracticeTestsView: React.FC = () => {
     // Persist per-user quiz metrics to server
     recordQuizAttempt({
       quizId: 'quiz_standard',
-      title: DEMO_QUIZ_SESSION.title || 'SGU Semester III Mock Test',
+      title: DEMO_QUIZ_SESSION.title || 'Semester III Practice Exam',
       subjectId: activeSubject?.id || 'cs201',
       subjectName: activeSubject?.name || 'Database Management Systems',
       score: calculatedScore,
@@ -168,7 +168,7 @@ export const PracticeTestsView: React.FC = () => {
 
           <div>
             <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-forest-100 text-forest-800 border border-forest-200">
-              SGU Semester III Mock Test
+              Semester III Practice Exam
             </span>
             <h1 className="text-2xl font-black text-charcoal-900 mt-2">
               {DEMO_QUIZ_SESSION.title}

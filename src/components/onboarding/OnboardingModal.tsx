@@ -37,7 +37,7 @@ export const OnboardingModal: React.FC = () => {
 
   // Student identity confirmed from Signup / Auth
   const studentName = currentUser?.name || studentProfile.name || 'Student';
-  const university = currentUser?.university || studentProfile.university || 'Sanjay Ghodawat University';
+  const university = currentUser?.university || studentProfile.university || 'University';
   const course = currentUser?.course || studentProfile.course || 'B.Tech';
   const branch = currentUser?.branch || studentProfile.branch || 'Artificial Intelligence & Machine Learning';
   const year = currentUser?.year || studentProfile.year || '2nd Year';
