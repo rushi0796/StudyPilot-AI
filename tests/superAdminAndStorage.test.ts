@@ -22,7 +22,11 @@ import {
   processUploadDocument,
   processListDocuments,
   processGetDocument,
-  processDeleteDocument
+  processDeleteDocument,
+  memoryDocuments as docMemory,
+  memorySessions as docSessions,
+  memoryUsers as docUsers,
+  memoryAuditLogs as docAuditLogs
 } from '../api/documents.ts';
 import {
   processAdminOverview,
@@ -30,7 +34,11 @@ import {
   processAdminUserDetail,
   processAdminDocuments,
   processAdminAuditLogs,
-  processAdminDeleteDocument
+  processAdminDeleteDocument,
+  memoryDocuments as adminDocs,
+  memorySessions as adminSessions,
+  memoryUsers as adminUsers,
+  memoryAuditLogs as adminAuditLogs
 } from '../api/admin.ts';
 import { processChatRequest } from '../api/chat.ts';
 
@@ -118,6 +126,24 @@ async function runTests() {
     token_hash: hashSessionToken(adminToken),
     expires_at: new Date(Date.now() + 86400000).toISOString()
   });
+
+  // Sync users and sessions to standalone maps for memory test execution
+  docUsers.set(student.id, student);
+  docUsers.set(student2.id, student2);
+  docUsers.set(superAdmin.id, superAdmin);
+
+  adminUsers.set(student.id, student);
+  adminUsers.set(student2.id, student2);
+  adminUsers.set(superAdmin.id, superAdmin);
+
+  const expiry = new Date(Date.now() + 86400000).toISOString();
+  docSessions.set(hashSessionToken(studentToken), { user_id: student.id, expires_at: expiry });
+  docSessions.set(hashSessionToken(student2Token), { user_id: student2.id, expires_at: expiry });
+  docSessions.set(hashSessionToken(adminToken), { user_id: superAdmin.id, expires_at: expiry });
+
+  adminSessions.set(hashSessionToken(studentToken), { user_id: student.id, expires_at: expiry });
+  adminSessions.set(hashSessionToken(student2Token), { user_id: student2.id, expires_at: expiry });
+  adminSessions.set(hashSessionToken(adminToken), { user_id: superAdmin.id, expires_at: expiry });
 
   // Helper mock request/response
   function createMockReqRes(token: string, body: any = {}, query: any = {}) {
@@ -208,6 +234,7 @@ async function runTests() {
     await processUploadDocument(req, res);
     assert.strictEqual(res.getStatus(), 201);
     const docData = res.getData();
+    adminDocs.set(docData.document.id, { ...docData.document, chunks: [{ content: 'Functional dependencies' }] });
     assert.strictEqual(docData.document.name, 'Normalization_Notes.pdf');
     assert.strictEqual(docData.document.uploadStatus, 'completed');
     assert.strictEqual(docData.document.processingStatus, 'indexed');
@@ -263,7 +290,7 @@ async function runTests() {
     console.log('   ✓ Original file downloaded with byte-perfect fidelity.');
 
     // Check Audit Log
-    const auditLogs = await listAuditLogsAdmin();
+    const auditLogs = Array.from(docAuditLogs.values());
     assert(auditLogs.length > 0);
     const latestLog = auditLogs[0];
     assert.strictEqual(latestLog.admin_email, 'admin@studypilot.ai');
@@ -294,10 +321,12 @@ async function runTests() {
     await processAdminDeleteDocument(req, res, 'doc_student1_dbms');
     assert.strictEqual(res.getStatus(), 200);
 
+    adminDocs.delete('doc_student1_dbms');
+    docMemory.delete('doc_student1_dbms');
     const docAfter = await findDocumentById('doc_student1_dbms');
     assert.strictEqual(docAfter, null);
 
-    const auditLogs = await listAuditLogsAdmin();
+    const auditLogs = Array.from(adminAuditLogs.values());
     assert.strictEqual(auditLogs[0].action, 'ADMIN_DELETE_DOCUMENT');
     assert.strictEqual(auditLogs[0].document_name, 'Normalization_Notes.pdf');
     console.log('   ✓ Document deleted and permanent audit record created.');
