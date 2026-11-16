@@ -12,6 +12,7 @@ export interface AuthUser {
   preferredLanguage: string;
   avatarUrl?: string;
   authProvider?: string;
+  role?: 'student' | 'super_admin';
   onboardingCompleted?: boolean;
   createdAt: string;
 }

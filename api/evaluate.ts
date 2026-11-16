@@ -94,7 +94,8 @@ Respond with ONLY valid JSON with this exact structure:
 }
 Respond with valid JSON only.`;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const model = (process.env.GEMINI_MODEL || 'gemini-1.5-flash').trim();
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
     const response = await fetch(geminiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

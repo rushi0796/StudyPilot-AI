@@ -222,6 +222,16 @@ export async function parseDocumentFile(file: File, subjectId = 'cs201'): Promis
     words = cleanText.split(/\s+/).filter(Boolean);
   }
 
+  let fileData = '';
+  try {
+    fileData = await new Promise((res) => {
+      const reader = new FileReader();
+      reader.onload = () => res(typeof reader.result === 'string' ? reader.result : '');
+      reader.onerror = () => res('');
+      reader.readAsDataURL(file);
+    });
+  } catch {}
+
   return {
     id: docId,
     name: file.name,
@@ -232,7 +242,8 @@ export async function parseDocumentFile(file: File, subjectId = 'cs201'): Promis
     wordCount: words.length,
     chunks,
     status: 'ready',
-    subjectId
+    subjectId,
+    fileData
   };
 }
 

@@ -13,6 +13,22 @@
       "destination": "/api/auth"
     },
     {
+      "source": "/api/documents/:path*",
+      "destination": "/api/documents"
+    },
+    {
+      "source": "/api/documents",
+      "destination": "/api/documents"
+    },
+    {
+      "source": "/api/admin/:path*",
+      "destination": "/api/admin"
+    },
+    {
+      "source": "/api/admin",
+      "destination": "/api/admin"
+    },
+    {
       "source": "/api/progress/:path*",
       "destination": "/api/progress?action=:path*"
     },

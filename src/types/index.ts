@@ -69,6 +69,7 @@ export interface UploadedDocument {
   chunks: DocumentChunk[];
   status: 'ready' | 'processing' | 'error';
   subjectId?: string;
+  fileData?: string;
 }
 
 export interface Topic {

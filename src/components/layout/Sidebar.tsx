@@ -14,9 +14,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Shield,
+  ShieldCheck,
   GraduationCap
 } from 'lucide-react';
 import { useApp, ActiveView } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -32,10 +34,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setMobileOpen
 }) => {
   const { activeView, setActiveView, revisionTasks, uploadedDocuments } = useApp();
+  const { currentUser } = useAuth();
 
   const pendingRevisions = revisionTasks.filter(r => !r.completed).length;
 
-  const navItems: { 
+  const baseNavItems: { 
     id: ActiveView; 
     label: string; 
     icon: React.ElementType; 
@@ -55,6 +58,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'progress', label: 'Learning Progress', icon: TrendingUp },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
+
+  const navItems = currentUser?.role === 'super_admin'
+    ? [
+        ...baseNavItems,
+        {
+          id: 'admin' as ActiveView,
+          label: 'Super Admin',
+          icon: ShieldCheck,
+          badge: 'Admin',
+          badgeColor: 'bg-gold-100 text-gold-800 border border-gold-300 font-bold',
+          flagship: true
+        }
+      ]
+    : baseNavItems;
 
   const handleNavClick = (viewId: ActiveView) => {
     setActiveView(viewId);

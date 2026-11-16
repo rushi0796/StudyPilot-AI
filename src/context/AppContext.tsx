@@ -61,7 +61,8 @@ export type ActiveView =
   | 'evaluator' 
   | 'planner' 
   | 'progress' 
-  | 'settings';
+  | 'settings'
+  | 'admin';
 
 interface AppContextType {
   activeView: ActiveView;

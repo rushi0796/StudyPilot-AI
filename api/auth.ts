@@ -21,6 +21,7 @@ export interface UserRecord {
   avatar_url?: string;
   auth_provider?: string;
   google_id?: string;
+  role?: 'student' | 'super_admin';
   onboarding_completed?: boolean;
   created_at: string;
   updated_at: string;
@@ -38,6 +39,7 @@ export interface SafeUser {
   preferredLanguage: string;
   avatarUrl?: string;
   authProvider: string;
+  role: 'student' | 'super_admin';
   onboardingCompleted: boolean;
   createdAt: string;
 }
@@ -52,6 +54,37 @@ export interface SessionRecord {
   ip_address?: string;
 }
 
+export interface DocumentRecord {
+  id: string;
+  user_id: string;
+  name: string;
+  type: string;
+  size: number;
+  upload_status: string;
+  processing_status: string;
+  extracted_text?: string;
+  chunks?: any[];
+  chunk_count: number;
+  word_count: number;
+  file_data?: string;
+  subject_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AuditLogRecord {
+  id: string;
+  admin_id: string;
+  admin_email: string;
+  target_user_id?: string;
+  target_user_email?: string;
+  document_id?: string;
+  document_name?: string;
+  action: string;
+  details?: string;
+  created_at: string;
+}
+
 export class DatabaseConfigurationError extends Error {
   constructor(message = 'Production database is not configured. Neon PostgreSQL connection string (POSTGRES_URL or DATABASE_URL) is required.') {
     super(message);
@@ -63,8 +96,10 @@ export class DatabaseConfigurationError extends Error {
    2. DATABASE CONNECTION & IN-MEMORY FALLBACK (DEV ONLY)
    ========================================================================== */
 
-const memoryUsers = new Map<string, UserRecord>();
-const memorySessions = new Map<string, SessionRecord>();
+export const memoryUsers = new Map<string, UserRecord>();
+export const memorySessions = new Map<string, SessionRecord>();
+export const memoryDocuments = new Map<string, DocumentRecord>();
+export const memoryAuditLogs = new Map<string, AuditLogRecord>();
 let schemaInitialized = false;
 
 export function isProductionEnvironment(): boolean {
@@ -170,6 +205,42 @@ export async function ensureDatabaseSchema(): Promise<void> {
 
     // Ensure non-destructive schema migration for existing databases
     await queryNeon('ALTER TABLE studypilot_users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN DEFAULT FALSE;');
+    await queryNeon("ALTER TABLE studypilot_users ADD COLUMN IF NOT EXISTS role VARCHAR(32) DEFAULT 'student';");
+
+    await queryNeon(`
+      CREATE TABLE IF NOT EXISTS studypilot_documents (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id VARCHAR(64) NOT NULL REFERENCES studypilot_users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        type VARCHAR(32) NOT NULL,
+        size INT NOT NULL,
+        upload_status VARCHAR(32) DEFAULT 'completed',
+        processing_status VARCHAR(32) DEFAULT 'indexed',
+        extracted_text TEXT,
+        chunks JSONB DEFAULT '[]'::jsonb,
+        chunk_count INT DEFAULT 0,
+        word_count INT DEFAULT 0,
+        file_data TEXT,
+        subject_id VARCHAR(64),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await queryNeon(`
+      CREATE TABLE IF NOT EXISTS studypilot_audit_logs (
+        id VARCHAR(64) PRIMARY KEY,
+        admin_id VARCHAR(64) NOT NULL REFERENCES studypilot_users(id) ON DELETE CASCADE,
+        admin_email VARCHAR(255) NOT NULL,
+        target_user_id VARCHAR(64),
+        target_user_email VARCHAR(255),
+        document_id VARCHAR(64),
+        document_name VARCHAR(255),
+        action VARCHAR(64) NOT NULL,
+        details TEXT,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
 
     await queryNeon(`
       CREATE TABLE IF NOT EXISTS studypilot_sessions (
@@ -325,7 +396,189 @@ export async function testDatabaseConnection(): Promise<{
 export function _resetMemoryDb(): void {
   memoryUsers.clear();
   memorySessions.clear();
+  memoryDocuments.clear();
+  memoryAuditLogs.clear();
   schemaInitialized = false;
+}
+
+export async function insertDocument(docData: Omit<DocumentRecord, 'created_at' | 'updated_at'>): Promise<DocumentRecord> {
+  const now = new Date().toISOString();
+  const record: DocumentRecord = {
+    ...docData,
+    created_at: now,
+    updated_at: now
+  };
+
+  if (!isNeonConfigured()) {
+    if (isProductionEnvironment()) throw new DatabaseConfigurationError();
+    memoryDocuments.set(record.id, record);
+    return record;
+  }
+
+  await ensureDatabaseSchema();
+  const rows = await queryNeon<DocumentRecord>(
+    `INSERT INTO studypilot_documents (
+       id, user_id, name, type, size, upload_status, processing_status, extracted_text, chunks, chunk_count, word_count, file_data, subject_id, created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+     RETURNING *;`,
+    [
+      record.id,
+      record.user_id,
+      record.name,
+      record.type,
+      record.size,
+      record.upload_status || 'completed',
+      record.processing_status || 'indexed',
+      record.extracted_text || null,
+      JSON.stringify(record.chunks || []),
+      record.chunk_count || 0,
+      record.word_count || 0,
+      record.file_data || null,
+      record.subject_id || null,
+      record.created_at,
+      record.updated_at
+    ]
+  );
+  return rows[0];
+}
+
+export async function findDocumentById(id: string): Promise<DocumentRecord | null> {
+  if (!isNeonConfigured()) {
+    if (isProductionEnvironment()) throw new DatabaseConfigurationError();
+    return memoryDocuments.get(id) || null;
+  }
+
+  await ensureDatabaseSchema();
+  const rows = await queryNeon<DocumentRecord>(
+    'SELECT * FROM studypilot_documents WHERE id = $1 LIMIT 1;',
+    [id]
+  );
+  return rows[0] || null;
+}
+
+export async function listDocumentsByUser(userId: string): Promise<Array<Omit<DocumentRecord, 'file_data'>>> {
+  if (!isNeonConfigured()) {
+    if (isProductionEnvironment()) throw new DatabaseConfigurationError();
+    const result: Array<Omit<DocumentRecord, 'file_data'>> = [];
+    for (const d of memoryDocuments.values()) {
+      if (d.user_id === userId) {
+        const { file_data, ...rest } = d;
+        result.push(rest);
+      }
+    }
+    return result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
+  await ensureDatabaseSchema();
+  const rows = await queryNeon<Omit<DocumentRecord, 'file_data'>>(
+    `SELECT id, user_id, name, type, size, upload_status, processing_status, chunk_count, word_count, subject_id, created_at, updated_at
+     FROM studypilot_documents
+     WHERE user_id = $1
+     ORDER BY created_at DESC;`,
+    [userId]
+  );
+  return rows;
+}
+
+export async function listAllDocumentsAdmin(): Promise<Array<Omit<DocumentRecord, 'file_data'> & { user_email?: string; user_name?: string }>> {
+  if (!isNeonConfigured()) {
+    if (isProductionEnvironment()) throw new DatabaseConfigurationError();
+    const result: Array<Omit<DocumentRecord, 'file_data'> & { user_email?: string; user_name?: string }> = [];
+    for (const d of memoryDocuments.values()) {
+      const u = await findUserById(d.user_id);
+      const { file_data, ...rest } = d;
+      result.push({
+        ...rest,
+        user_email: u?.email || 'unknown',
+        user_name: u?.name || 'Unknown'
+      });
+    }
+    return result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
+  await ensureDatabaseSchema();
+  const rows = await queryNeon<Omit<DocumentRecord, 'file_data'> & { user_email?: string; user_name?: string }>(
+    `SELECT d.id, d.user_id, d.name, d.type, d.size, d.upload_status, d.processing_status, d.chunk_count, d.word_count, d.subject_id, d.created_at, d.updated_at,
+            u.email as user_email, u.name as user_name
+     FROM studypilot_documents d
+     LEFT JOIN studypilot_users u ON d.user_id = u.id
+     ORDER BY d.created_at DESC;`
+  );
+  return rows;
+}
+
+export async function deleteDocumentById(id: string): Promise<boolean> {
+  if (!isNeonConfigured()) {
+    if (isProductionEnvironment()) throw new DatabaseConfigurationError();
+    return memoryDocuments.delete(id);
+  }
+
+  await ensureDatabaseSchema();
+  await queryNeon('DELETE FROM studypilot_documents WHERE id = $1;', [id]);
+  return true;
+}
+
+export async function insertAuditLog(logData: Omit<AuditLogRecord, 'created_at'>): Promise<AuditLogRecord> {
+  const now = new Date().toISOString();
+  const record: AuditLogRecord = {
+    ...logData,
+    created_at: now
+  };
+
+  if (!isNeonConfigured()) {
+    if (isProductionEnvironment()) throw new DatabaseConfigurationError();
+    memoryAuditLogs.set(record.id, record);
+    return record;
+  }
+
+  await ensureDatabaseSchema();
+  const rows = await queryNeon<AuditLogRecord>(
+    `INSERT INTO studypilot_audit_logs (
+       id, admin_id, admin_email, target_user_id, target_user_email, document_id, document_name, action, details, created_at
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     RETURNING *;`,
+    [
+      record.id,
+      record.admin_id,
+      record.admin_email,
+      record.target_user_id || null,
+      record.target_user_email || null,
+      record.document_id || null,
+      record.document_name || null,
+      record.action,
+      record.details || null,
+      record.created_at
+    ]
+  );
+  return rows[0];
+}
+
+export async function listAuditLogsAdmin(): Promise<AuditLogRecord[]> {
+  if (!isNeonConfigured()) {
+    if (isProductionEnvironment()) throw new DatabaseConfigurationError();
+    return Array.from(memoryAuditLogs.values()).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  }
+
+  await ensureDatabaseSchema();
+  const rows = await queryNeon<AuditLogRecord>(
+    'SELECT * FROM studypilot_audit_logs ORDER BY created_at DESC LIMIT 200;'
+  );
+  return rows;
+}
+
+export async function listAllUsersAdmin(): Promise<SafeUser[]> {
+  if (!isNeonConfigured()) {
+    if (isProductionEnvironment()) throw new DatabaseConfigurationError();
+    return Array.from(memoryUsers.values()).map(toSafeUser);
+  }
+
+  await ensureDatabaseSchema();
+  const rows = await queryNeon<UserRecord>(
+    'SELECT * FROM studypilot_users ORDER BY created_at DESC;'
+  );
+  return rows.map(toSafeUser);
 }
 
 export async function findUserByEmail(email: string): Promise<UserRecord | null> {
@@ -398,9 +651,11 @@ export async function linkGoogleAccount(userId: string, googleId: string, avatar
 export async function insertUser(userData: Omit<UserRecord, 'created_at' | 'updated_at'>): Promise<UserRecord> {
   const normEmail = userData.email.toLowerCase().trim();
   const now = new Date().toISOString();
+  const assignedRole = userData.role || (isSuperAdminEmail(normEmail) ? 'super_admin' : 'student');
   const record: UserRecord = {
     ...userData,
     email: normEmail,
+    role: assignedRole,
     onboarding_completed: Boolean(userData.onboarding_completed),
     created_at: now,
     updated_at: now
@@ -415,8 +670,8 @@ export async function insertUser(userData: Omit<UserRecord, 'created_at' | 'upda
   await ensureDatabaseSchema();
   const rows = await queryNeon<UserRecord>(
     `INSERT INTO studypilot_users (
-       id, email, password_hash, name, university, course, branch, year, semester, preferred_language, avatar_url, auth_provider, google_id, onboarding_completed
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       id, email, password_hash, name, university, course, branch, year, semester, preferred_language, avatar_url, auth_provider, google_id, onboarding_completed, role
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
      RETURNING *;`,
     [
       record.id,
@@ -432,7 +687,8 @@ export async function insertUser(userData: Omit<UserRecord, 'created_at' | 'upda
       record.avatar_url || null,
       record.auth_provider || 'local',
       record.google_id || null,
-      Boolean(record.onboarding_completed)
+      Boolean(record.onboarding_completed),
+      record.role
     ]
   );
   return rows[0];
@@ -634,6 +890,56 @@ export function _resetRateLimits(): void {
   rateLimitStore.clear();
 }
 
+export function isSuperAdminEmail(email?: string): boolean {
+  if (!email) return false;
+  const adminEmails = (process.env.SUPER_ADMIN_EMAILS || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
+  
+  const defaultAdmin = (process.env.ADMIN_EMAIL || 'admin@studypilot.ai').trim().toLowerCase();
+  if (defaultAdmin && email.toLowerCase() === defaultAdmin) return true;
+
+  return adminEmails.includes(email.toLowerCase());
+}
+
+export function getUserRole(user: UserRecord): 'student' | 'super_admin' {
+  if (user.role === 'super_admin' || isSuperAdminEmail(user.email)) {
+    return 'super_admin';
+  }
+  return 'student';
+}
+
+export async function authenticateRequest(req: any): Promise<UserRecord | null> {
+  const token = getSessionTokenFromRequest(req);
+  if (!token) return null;
+  return await findUserBySessionToken(token);
+}
+
+export async function requireSuperAdmin(req: any): Promise<{ user: UserRecord } | { error: { message: string; code: string; status: number } }> {
+  const user = await authenticateRequest(req);
+  if (!user) {
+    return {
+      error: {
+        message: 'Authentication required. Please sign in as Super Admin.',
+        code: 'UNAUTHENTICATED',
+        status: 401
+      }
+    };
+  }
+  const role = getUserRole(user);
+  if (role !== 'super_admin') {
+    return {
+      error: {
+        message: 'Forbidden. Super Admin access required.',
+        code: 'FORBIDDEN',
+        status: 403
+      }
+    };
+  }
+  return { user };
+}
+
 export function toSafeUser(user: UserRecord): SafeUser {
   return {
     id: user.id,
@@ -647,6 +953,7 @@ export function toSafeUser(user: UserRecord): SafeUser {
     preferredLanguage: user.preferred_language || 'en',
     avatarUrl: user.avatar_url || undefined,
     authProvider: user.auth_provider || 'local',
+    role: getUserRole(user),
     onboardingCompleted: Boolean(user.onboarding_completed),
     createdAt: user.created_at
   };
@@ -844,6 +1151,7 @@ export async function processSignup(body: any, clientIp = '127.0.0.1') {
       semester: cleanSemester,
       preferred_language: cleanLang.slice(0, 10),
       auth_provider: 'local',
+      role: isSuperAdminEmail(cleanEmail) ? 'super_admin' : 'student',
       onboarding_completed: false
     });
 

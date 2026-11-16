@@ -18,7 +18,9 @@ import {
   ExternalLink,
   X,
   BookOpen,
-  ArrowRight
+  ArrowRight,
+  Download,
+  ShieldCheck
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UploadedDocument, DocumentChunk } from '../../types';
@@ -146,6 +148,21 @@ export const MyFilesView: React.FC = () => {
     setActiveView('syllabus');
   };
 
+  const handleDownloadDocument = (doc: UploadedDocument) => {
+    const downloadUrl = `/api/documents?id=${encodeURIComponent(doc.id)}&action=download`;
+    const link = document.createElement('a');
+    if (doc.fileData && doc.fileData.startsWith('data:')) {
+      link.href = doc.fileData;
+      link.download = doc.name;
+    } else {
+      link.href = downloadUrl;
+      link.download = doc.name;
+    }
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6 pb-12 animate-in fade-in duration-200">
       
@@ -184,9 +201,18 @@ export const MyFilesView: React.FC = () => {
           ref={fileInputRef}
           type="file"
           accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg"
-          className="hidden"
           onChange={handleFileChange}
+          className="hidden"
         />
+      </div>
+
+      {/* Student Privacy & Data Protection Notice */}
+      <div className="p-3.5 rounded-xl bg-forest-50/90 border border-forest-200 text-xs text-forest-900 flex items-start gap-2.5 shadow-subtle">
+        <ShieldCheck className="w-4 h-4 text-forest-600 flex-shrink-0 mt-0.5" />
+        <div>
+          <span className="font-bold">Student Privacy & Data Protection: </span>
+          <span>Your uploaded study materials and notes are stored privately on your personal account. They are never shared with or accessible by other students, and are used exclusively to power your personal study assistance, AI evaluation, and RAG grounding.</span>
+        </div>
       </div>
 
       {/* 2. Drag-and-Drop Upload Area */}
@@ -385,9 +411,19 @@ export const MyFilesView: React.FC = () => {
                         <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-sage-200 text-forest-800">
                           {doc.type.toUpperCase()}
                         </span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-forest-50 text-forest-700 border border-forest-200">
-                          Ready for AI RAG
-                        </span>
+                        {(doc.chunks && doc.chunks.length > 0) ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-forest-50 text-forest-700 border border-forest-200">
+                            Indexed & Ready ({doc.chunks.length} chunks)
+                          </span>
+                        ) : doc.status === 'processing' ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                            Processing Chunks...
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-50 text-gray-700 border border-gray-200">
+                            Uploaded
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex flex-wrap items-center gap-3 text-xs text-charcoal-400">
@@ -413,6 +449,16 @@ export const MyFilesView: React.FC = () => {
                     >
                       <Eye className="w-3.5 h-3.5 text-forest-600" />
                       <span>Preview Chunks</span>
+                    </button>
+
+                    {/* Download Original File */}
+                    <button
+                      onClick={() => handleDownloadDocument(doc)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-academic-bg hover:bg-sage-100 text-charcoal-700 text-xs font-semibold border border-[#E5E0D5] transition-colors"
+                      title="Download original file"
+                    >
+                      <Download className="w-3.5 h-3.5 text-forest-600" />
+                      <span>Download</span>
                     </button>
 
                     {/* Chat with Document */}

@@ -22,6 +22,7 @@ import { AnswerEvaluatorView } from './components/evaluator/AnswerEvaluatorView'
 import { RevisionPlannerView } from './components/planner/RevisionPlannerView';
 import { LearningProgressView } from './components/progress/LearningProgressView';
 import { SettingsView } from './components/settings/SettingsView';
+import { SuperAdminDashboard } from './components/admin/SuperAdminDashboard';
 import { Menu } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import { StudyPilotLoader } from './components/common/StudyPilotLoader';
@@ -29,11 +30,17 @@ import { FloatingVoiceButton } from './components/voice/FloatingVoiceButton';
 import { VoiceCallModal } from './components/voice/VoiceCallModal';
 
 const AppContent: React.FC = () => {
-  const { activeView } = useApp();
+  const { activeView, setActiveView } = useApp();
   const { isLoading, bypassLoading } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [voiceCallOpen, setVoiceCallOpen] = useState(false);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && (window.location.pathname === '/admin' || window.location.search.includes('view=admin'))) {
+      setActiveView('admin');
+    }
+  }, [setActiveView]);
 
   if (isLoading) {
     return (
@@ -58,6 +65,7 @@ const AppContent: React.FC = () => {
       case 'planner': return <RevisionPlannerView />;
       case 'progress': return <LearningProgressView />;
       case 'settings': return <SettingsView />;
+      case 'admin': return <SuperAdminDashboard />;
       default: return <DashboardView />;
     }
   };

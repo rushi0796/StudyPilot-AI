@@ -62,9 +62,120 @@ export function filterDocumentsForUser(docs: UploadedDocument[], userId?: string
 }
 
 /**
- * Load all documents from persistent IndexedDB with strict per-user isolation
+ * Load all documents from persistent storage (Server API synced with IndexedDB) with strict per-user isolation
  */
 export async function loadPersistentDocuments(userId?: string): Promise<UploadedDocument[]> {
+  // 1. If student is authenticated, attempt to sync with server-side PostgreSQL
+  if (userId && userId !== 'guest' && typeof fetch !== 'undefined') {
+    try {
+      const response = await fetch('/api/documents', {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const serverDocs: Array<{
+          id: string;
+          name: string;
+          type: string;
+          size: number;
+          uploadStatus: string;
+          processingStatus: string;
+          chunkCount: number;
+          wordCount: number;
+          subjectId?: string;
+          createdAt: string;
+        }> = data.documents || [];
+
+        // Try reading local IndexedDB to reuse extracted text & chunks if already cached
+        let localMap = new Map<string, UploadedDocument>();
+        try {
+          const db = await openDatabase();
+          const localTx = db.transaction(STORE_NAME, 'readonly');
+          const store = localTx.objectStore(STORE_NAME);
+          const localDocs: UploadedDocument[] = await new Promise((res) => {
+            const req = store.getAll();
+            req.onsuccess = () => res(req.result || []);
+            req.onerror = () => res([]);
+          });
+          localDocs.forEach(d => localMap.set(d.id, d));
+        } catch {}
+
+        const mapped: UploadedDocument[] = [];
+        for (const sDoc of serverDocs) {
+          const cached = localMap.get(sDoc.id);
+          if (cached && (cached.chunks?.length || 0) > 0) {
+            mapped.push(cached);
+          } else {
+            // Need details (chunks & text)
+            try {
+              const detailRes = await fetch(`/api/documents?id=${encodeURIComponent(sDoc.id)}`, {
+                credentials: 'include'
+              });
+              if (detailRes.ok) {
+                const detailData = await detailRes.json();
+                const d = detailData.document;
+                const fullDoc: UploadedDocument = {
+                  id: d.id,
+                  userId,
+                  name: d.name,
+                  size: d.size,
+                  type: (d.type as any) || 'pdf',
+                  uploadedAt: d.createdAt || sDoc.createdAt || 'Just now',
+                  text: d.extractedText || '',
+                  wordCount: d.wordCount || 0,
+                  chunks: d.chunks || [],
+                  status: (d.processingStatus === 'indexed' || d.uploadStatus === 'completed') ? 'ready' : 'processing',
+                  subjectId: d.subjectId
+                };
+                mapped.push(fullDoc);
+                // Cache into IndexedDB
+                openDatabase().then(db => {
+                  const tx = db.transaction(STORE_NAME, 'readwrite');
+                  tx.objectStore(STORE_NAME).put(fullDoc);
+                }).catch(() => {});
+              } else {
+                mapped.push({
+                  id: sDoc.id,
+                  userId,
+                  name: sDoc.name,
+                  size: sDoc.size,
+                  type: (sDoc.type as any) || 'pdf',
+                  uploadedAt: sDoc.createdAt || 'Just now',
+                  text: '',
+                  wordCount: sDoc.wordCount || 0,
+                  chunks: [],
+                  status: 'ready',
+                  subjectId: sDoc.subjectId
+                });
+              }
+            } catch {
+              mapped.push({
+                id: sDoc.id,
+                userId,
+                name: sDoc.name,
+                size: sDoc.size,
+                type: (sDoc.type as any) || 'pdf',
+                uploadedAt: sDoc.createdAt || 'Just now',
+                text: '',
+                wordCount: sDoc.wordCount || 0,
+                chunks: [],
+                status: 'ready',
+                subjectId: sDoc.subjectId
+              });
+            }
+          }
+        }
+        return mapped;
+      }
+    } catch {
+      // Server unreachable; fall back to local IndexedDB
+    }
+  }
+
+  // 2. Fallback to local IndexedDB
   try {
     const db = await openDatabase();
     return new Promise((resolve) => {
@@ -120,13 +231,34 @@ async function seedInitialDocuments(db: IDBDatabase): Promise<UploadedDocument[]
 }
 
 /**
- * Persist a document in IndexedDB with enforced student identity
+ * Persist a document in IndexedDB and server-side PostgreSQL
  */
 export async function savePersistentDocument(doc: UploadedDocument, userId?: string): Promise<void> {
   const docToSave: UploadedDocument = {
     ...doc,
     userId: doc.userId || userId || 'guest'
   };
+
+  // Sync to server-side PostgreSQL if authenticated
+  if (userId && userId !== 'guest' && typeof fetch !== 'undefined') {
+    fetch('/api/documents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        id: docToSave.id,
+        name: docToSave.name,
+        type: docToSave.type,
+        size: docToSave.size,
+        extractedText: docToSave.text,
+        chunks: docToSave.chunks,
+        chunkCount: docToSave.chunks?.length || 0,
+        wordCount: docToSave.wordCount || 0,
+        fileData: docToSave.fileData || '',
+        subjectId: docToSave.subjectId
+      })
+    }).catch(err => console.warn('Background server document sync failed:', err));
+  }
 
   try {
     const db = await openDatabase();
@@ -144,16 +276,23 @@ export async function savePersistentDocument(doc: UploadedDocument, userId?: str
 }
 
 /**
- * Permanently delete a document from IndexedDB with ownership verification
+ * Permanently delete a document from IndexedDB and server-side PostgreSQL
  */
 export async function deletePersistentDocument(docId: string, userId?: string): Promise<void> {
+  // Sync deletion to server if authenticated
+  if (userId && userId !== 'guest' && typeof fetch !== 'undefined') {
+    fetch(`/api/documents?id=${encodeURIComponent(docId)}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    }).catch(err => console.warn('Background server document delete failed:', err));
+  }
+
   try {
     const db = await openDatabase();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
       
-      // If doc is preloaded, delete operation is acknowledged for the user view
       const req = store.delete(docId);
 
       req.onsuccess = () => resolve();

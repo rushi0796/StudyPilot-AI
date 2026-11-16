@@ -114,6 +114,57 @@ export function searchDocuments(query: string, chunks?: DocumentChunkContext[]):
     }));
 }
 
+/**
+ * Call Gemini with a strict timeout and transient failure retry only.
+ * Avoids cascading retries on 400 bad requests or 429 quota exhaustion.
+ */
+export async function callGeminiWithTimeout(
+  url: string,
+  body: any,
+  timeoutMs = 15000
+): Promise<{ ok: boolean; status: number; data?: any; errorData?: any }> {
+  const attemptCall = async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        return { ok: false, status: response.status, errorData: errData };
+      }
+      const data = await response.json();
+      return { ok: true, status: 200, data };
+    } catch (err: any) {
+      clearTimeout(timeout);
+      const isTimeout = err?.name === 'AbortError';
+      return {
+        ok: false,
+        status: isTimeout ? 504 : 500,
+        errorData: {
+          error: {
+            message: isTimeout ? 'Gemini request timed out after 15 seconds.' : (err?.message || 'Network error contacting Gemini API')
+          }
+        }
+      };
+    }
+  };
+
+  let res = await attemptCall();
+  // Transient failure retry only for 500 or 503; do NOT retry 400 or 429 quota errors
+  if (!res.ok && (res.status === 500 || res.status === 503)) {
+    console.warn(`Gemini returned transient status ${res.status}. Retrying once after 1s...`);
+    await new Promise(r => setTimeout(r, 1000));
+    res = await attemptCall();
+  }
+  return res;
+}
+
 export async function processChatRequest(payload: ChatRequestPayload) {
   const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim();
   if (!apiKey) {
@@ -147,7 +198,7 @@ export async function processChatRequest(payload: ChatRequestPayload) {
     };
   }
 
-  const preferredModel = payload.model || 'gemini-3.8-flash';
+  const PRIMARY_GEMINI_MODEL = (process.env.GEMINI_MODEL || payload.model || 'gemini-1.5-flash').trim();
 
   const selectedLang = (payload.language || 'en').toLowerCase();
   let languageStrictRule = '';
@@ -161,15 +212,16 @@ export async function processChatRequest(payload: ChatRequestPayload) {
     languageStrictRule = 'CRITICAL LANGUAGE DIRECTIVE: You MUST answer EXCLUSIVELY in clear, articulate collegiate English. Even if the student uses Hindi/Marathi words or regional collegiate slang, answer in clear English.';
   }
 
-  // 1. Perform Document Retrieval if document chunks or active document grounding is provided
+  // 1. Perform High-Precision Document Retrieval only if uploaded document chunks exist
   let ragContext = '';
   const retrievedCitations: string[] = [];
-  const hasChunksProvided = Boolean(payload.documentChunks && payload.documentChunks.length > 0);
-  const isGroundingActive = Boolean(hasChunksProvided || payload.hasActiveDocument || payload.studyContext?.hasActiveDocument);
-  const activeDocName = payload.activeDocumentName || payload.studyContext?.activeDocumentName || payload.documentChunks?.[0]?.documentName || 'uploaded notes';
+  const rawChunks = payload.documentChunks || [];
+  const hasUploadedDocs = Boolean(
+    (rawChunks.length > 0) || payload.hasActiveDocument || payload.studyContext?.hasActiveDocument
+  );
 
-  if (isGroundingActive) {
-    const relevantPassages = hasChunksProvided ? searchDocuments(userMessage, payload.documentChunks) : [];
+  if (hasUploadedDocs && rawChunks.length > 0) {
+    const relevantPassages = searchDocuments(userMessage, rawChunks).slice(0, 4);
 
     if (relevantPassages.length > 0) {
       relevantPassages.forEach(p => retrievedCitations.push(`[Source: ${p.source}]`));
@@ -179,11 +231,19 @@ export async function processChatRequest(payload: ChatRequestPayload) {
 1. When answering questions regarding the student's uploaded materials, base your answer strictly on the retrieved excerpts above.
 2. For any fact from the document, explicitly cite: "[Source: <DocumentName>, <Page/Section>]".
 3. Never invent facts, page numbers, quotations, or citations.
-4. If the user asks about something specific to their uploaded document that is NOT in the retrieved excerpts, clearly say: "I couldn't find this information in your uploaded documents." You may then offer general knowledge, explicitly labeled: "[General Knowledge - Not found in uploaded files]: <explanation>".
-5. Never claim an answer came from a file unless the content is in the excerpts above.`;
+4. Never claim an answer came from a file unless the content is in the excerpts above.`;
     } else {
-      // Document grounding active, but NO passages matched query — mark for web search fallback
-      ragContext = 'WEB_SEARCH_FALLBACK';
+      // Chunks exist, but NONE matched the query. Check if user asked about their document:
+      const asksAboutDoc = /\b(document|notes|pdf|file|uploaded|handout|chapter|page|slides|material)\b/i.test(userMessage);
+      if (asksAboutDoc) {
+        ragContext = `\n\n### NOTICE REGARDING UPLOADED STUDY MATERIALS:
+The student asked a question referencing their uploaded study document/notes, but the requested information was NOT found anywhere in their uploaded documents.
+CRITICAL INSTRUCTION:
+1. State clearly at the beginning: "I couldn't find this information in your uploaded documents."
+2. Then, provide a helpful general explanation from your general knowledge, clearly labeled:
+"[General Knowledge - Not found in uploaded files]: <your answer here>".
+3. Do NOT cite any document source or pretend it was in their notes.`;
+      }
     }
   }
 
@@ -206,7 +266,7 @@ Core Capabilities & Operating Principles:
    - You are NOT restricted to academic syllabus topics. You must answer general knowledge, programming, technology, entertainment, everyday questions, brainstorming, science, and casual conversation naturally.
    - For programming & CS questions (e.g., "Explain recursion in simple terms", "Difference between React and Angular"): provide clear explanations, analogies, and clean code.
    - For science questions (e.g., "Explain photosynthesis"): explain the mechanism clearly with steps.
-   - For general knowledge & sports questions (e.g., "Who won the latest cricket match?"): answer accurately. For questions requiring live real-time feeds past knowledge limits, explain clearly that as an AI assistant without a live sports ticker, you do not have today's live match result, but provide the latest tournament info you know. Do NOT fabricate live scores.
+   - For general knowledge & sports questions: answer accurately. For questions requiring live real-time feeds past knowledge limits, explain clearly that as an AI assistant without a live sports ticker, you do not have today's live match result, but provide the latest tournament info you know. Do NOT fabricate live scores.
    - For everyday conversation & entertainment (e.g., "Tell me a joke"): respond with humor and warmth.
    - For brainstorming (e.g., "Give me ideas for a college project"): give creative, actionable, well-structured ideas.
    - For exam preparation advice (e.g., "How can I prepare for my exams?"): give structured, practical revision tips.
@@ -218,11 +278,9 @@ Core Capabilities & Operating Principles:
 4. Language & Multilingual Directive:
    - The user has chosen ${selectedLang.toUpperCase()} as their active study language.
    - ${languageStrictRule}
-5. Uploaded Document Grounding:
-   - When the user asks about their uploaded study documents or notes:
-     * Base your answer strictly on the retrieved source excerpts and cite "[Source: <DocumentName>, <Page/Section>]".
-     * If the required information is not in the uploaded documents, state: "I couldn't find this information in your uploaded documents." You may then provide a general answer labeled: "[General Knowledge - Not found in uploaded files]: ...".
-   - When the user is NOT asking about an uploaded file (e.g. general questions, jokes, cricket, math, general programming), NEVER say "I couldn't find this information in your uploaded documents". Answer normally from your general knowledge.`;
+5. Grounding & Citations:
+   - When retrieved document excerpts are provided, cite "[Source: <DocumentName>, <Page/Section>]".
+   - When no document excerpts are provided, answer directly and authoritatively from your knowledge base without mentioning documents or non-existent files.`;
 
   if (payload.studyContext?.subject || payload.studyContext?.topic) {
     systemInstruction += `\nCurrent Academic Context: Subject: "${payload.studyContext.subject || 'General'}", Focus Area: "${payload.studyContext.topic || 'General'}". (Always prioritize the user's exact query).`;
@@ -240,7 +298,8 @@ Core Capabilities & Operating Principles:
 
   const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text?: string; functionCall?: any; functionResponse?: any }> }> = [];
 
-  const rawHistory = payload.history || [];
+  // Limit conversation history to the last 8 turns to avoid prompt bloat and unnecessary latency
+  const rawHistory = (payload.history || []).slice(-8);
   for (const item of rawHistory) {
     const itemContent = item.content || (item as any).text;
     if (!itemContent || !itemContent.trim()) continue;
@@ -293,18 +352,6 @@ Core Capabilities & Operating Principles:
   ];
 
   try {
-    const candidateModels = [
-      preferredModel,
-      'gemini-3.8-flash',
-      'gemini-3.5-flash-lite',
-      'gemini-2.5-flash'
-    ].filter(Boolean) as string[];
-    const modelsToTry = Array.from(new Set(candidateModels));
-
-    let lastErrorData: any = null;
-    let data: any = null;
-    let activeModel = preferredModel;
-
     const requestBody: any = {
       contents,
       systemInstruction: {
@@ -317,53 +364,24 @@ Core Capabilities & Operating Principles:
       tools
     };
 
-    for (const modelToAttempt of modelsToTry) {
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToAttempt}:generateContent?key=${encodeURIComponent(apiKey)}`;
-      
-      try {
-        const response = await fetch(geminiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody)
-        });
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          lastErrorData = {
-            status: response.status,
-            message: errData.error?.message || `HTTP ${response.status} from Gemini API (${modelToAttempt})`,
-            details: errData.error
-          };
+    // Call Gemini with 15s timeout and transient-only retry (status 500/503)
+    let callResult = await callGeminiWithTimeout(geminiUrl, requestBody, 15000);
 
-          // If candidate model fails with any HTTP error (429 quota, 404 missing, 400 bad config, 500/503 server error), try next candidate model
-          console.warn(`Model ${modelToAttempt} failed with HTTP ${response.status}. Trying next candidate model...`);
-          continue;
-        }
-
-        data = await response.json();
-        activeModel = modelToAttempt;
-        break;
-      } catch (fetchErr: any) {
-        lastErrorData = {
-          status: 500,
-          message: fetchErr?.message || `Network error contacting Gemini API for ${modelToAttempt}`
-        };
-        continue;
-      }
-    }
-
-    if (!data) {
+    if (!callResult.ok) {
       return {
         error: {
-          message: `Google Gemini error: ${lastErrorData?.message || 'All candidate AI models were unreachable.'}`,
-          code: lastErrorData?.status === 429 ? 'RATE_LIMIT_EXCEEDED' : 'GEMINI_ERROR',
-          status: lastErrorData?.status || 500,
-          details: lastErrorData?.details
+          message: `Google Gemini error: ${callResult.errorData?.error?.message || `HTTP ${callResult.status} from Gemini API`}`,
+          code: callResult.status === 429 ? 'RATE_LIMIT_EXCEEDED' : 'GEMINI_ERROR',
+          status: callResult.status,
+          details: callResult.errorData?.error
         }
       };
     }
 
-    const candidate = data.candidates?.[0]?.content;
+    const data = callResult.data;
+    const candidate = data?.candidates?.[0]?.content;
     const parts = candidate?.parts || [];
 
     const functionCalls = parts.filter((p: any) => Boolean(p.functionCall)).map((p: any) => p.functionCall);
@@ -400,28 +418,23 @@ Core Capabilities & Operating Principles:
         parts: toolParts
       });
 
-      const secondGeminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${encodeURIComponent(apiKey)}`;
-      const secondResponse = await fetch(secondGeminiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents,
-          systemInstruction: {
-            parts: [{ text: systemInstruction }]
-          },
-          generationConfig: {
-            temperature: 0.5,
-            maxOutputTokens: 2048
-          }
-        })
-      });
+      const secondCallResult = await callGeminiWithTimeout(geminiUrl, {
+        contents,
+        systemInstruction: {
+          parts: [{ text: systemInstruction }]
+        },
+        generationConfig: {
+          temperature: 0.5,
+          maxOutputTokens: 2048
+        }
+      }, 15000);
 
-      if (secondResponse.ok) {
-        const secondData = await secondResponse.json();
+      if (secondCallResult.ok) {
+        const secondData = secondCallResult.data;
         const secondText = secondData.candidates?.[0]?.content?.parts?.[0]?.text || '';
         return {
           text: secondText,
-          model: activeModel,
+          model: PRIMARY_GEMINI_MODEL,
           toolCallsExecuted: executedTools.length > 0 ? executedTools : undefined,
           citations: retrievedCitations.length > 0 ? Array.from(new Set(retrievedCitations)) : undefined
         };
@@ -439,70 +452,9 @@ Core Capabilities & Operating Principles:
       };
     }
 
-    // ── Web Search Fallback ────────────────────────────────────────────────────
-    // When document grounding is active but NO PDF chunks matched, perform a
-    // secondary Gemini call with the google_search grounding tool so the student
-    // still gets a real, web-sourced answer clearly distinguished from PDF content.
-    if (ragContext === 'WEB_SEARCH_FALLBACK') {
-      const webSearchBody: any = {
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: userMessage }]
-          }
-        ],
-        systemInstruction: {
-          parts: [{ text: `You are StudyPilot AI, an intelligent academic assistant for ${targetUniversity} students. Answer the following question clearly and concisely using up-to-date information from the web. ${languageStrictRule}` }]
-        },
-        generationConfig: {
-          temperature: 0.4,
-          maxOutputTokens: 1024
-        },
-        tools: [{ googleSearch: {} }]
-      };
-
-      try {
-        const webSearchModel = 'gemini-3.8-flash';
-        const webSearchUrl = `https://generativelanguage.googleapis.com/v1beta/models/${webSearchModel}:generateContent?key=${encodeURIComponent(apiKey)}`;
-        const webResp = await fetch(webSearchUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(webSearchBody)
-        });
-
-        if (webResp.ok) {
-          const webData = await webResp.json();
-          const webText = webData.candidates?.[0]?.content?.parts?.find((p: any) => typeof p.text === 'string')?.text || '';
-          if (webText) {
-            return {
-              text: `⚠️ This information was not found in your uploaded PDF.
-
-I searched the web and found the following answer:`,
-              webSearchResult: webText,
-              model: activeModel,
-              isWebSearchFallback: true
-            };
-          }
-        }
-      } catch {
-        // Web search failed — fall through to normal general-knowledge answer below
-      }
-
-      // If web search itself failed, give a clear honest general-knowledge answer
-      return {
-        text: `⚠️ This information was not found in your uploaded PDF.
-
-Here is a general knowledge answer (not from your document):
-
-${outputText}`,
-        model: activeModel,
-        isWebSearchFallback: true
-      };
-    }
-
     return {
       text: outputText,
-      model: activeModel,
+      model: PRIMARY_GEMINI_MODEL,
       citations: retrievedCitations.length > 0 ? Array.from(new Set(retrievedCitations)) : undefined
     };
 
@@ -549,11 +501,7 @@ export async function processOcrRequest(payload: {
   const base64Data = rawImage.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
   const mimeType = payload.mimeType || 'image/jpeg';
 
-  const candidateModels = [
-    'gemini-3.8-flash',
-    'gemini-3.5-flash-lite',
-    'gemini-2.5-flash'
-  ];
+  const PRIMARY_OCR_MODEL = (process.env.GEMINI_OCR_MODEL || process.env.GEMINI_MODEL || 'gemini-1.5-flash').trim();
 
   const ocrPrompt = `You are an expert academic document Optical Character Recognition (OCR) engine.
 Analyze this scanned study document page (File: "${payload.filename || 'Scanned Document'}", Page ${payload.pageNumber || 1}) and extract all text, questions, options, headings, numbers, tables, marks, and student notes.
@@ -584,57 +532,26 @@ Instructions:
     }
   };
 
-  let lastErrorData: any = null;
-  let data: any = null;
-  let activeModel = 'gemini-3.8-flash';
+  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_OCR_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const callResult = await callGeminiWithTimeout(geminiUrl, requestBody, 20000);
 
-  for (const modelToAttempt of candidateModels) {
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToAttempt}:generateContent?key=${encodeURIComponent(apiKey)}`;
-    try {
-      const response = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        lastErrorData = {
-          status: response.status,
-          message: errData.error?.message || `HTTP ${response.status} from Gemini API (${modelToAttempt})`
-        };
-        console.warn(`OCR model ${modelToAttempt} failed with HTTP ${response.status}. Trying next...`);
-        continue;
-      }
-
-      data = await response.json();
-      activeModel = modelToAttempt;
-      break;
-    } catch (fetchErr: any) {
-      lastErrorData = {
-        status: 500,
-        message: fetchErr?.message || `Network error contacting Gemini API for ${modelToAttempt}`
-      };
-      continue;
-    }
-  }
-
-  if (!data) {
+  if (!callResult.ok) {
     return {
       error: {
-        message: `OCR extraction failed: ${lastErrorData?.message || 'All candidate AI models were unreachable.'}`,
+        message: `OCR extraction failed: ${callResult.errorData?.error?.message || `HTTP ${callResult.status} from Gemini API`}`,
         code: 'OCR_FAILED',
-        status: lastErrorData?.status || 500
+        status: callResult.status || 500
       }
     };
   }
 
-  const parts = data.candidates?.[0]?.content?.parts || [];
+  const data = callResult.data;
+  const parts = data?.candidates?.[0]?.content?.parts || [];
   const extractedText = parts.find((p: any) => typeof p.text === 'string')?.text || '';
 
   return {
     text: extractedText.trim(),
-    model: activeModel,
+    model: PRIMARY_OCR_MODEL,
     pageNumber: payload.pageNumber || 1
   };
 }
@@ -653,7 +570,7 @@ export default async function handler(req: any, res: any) {
       status: 'active',
       service: 'StudyPilot AI Chat Service',
       hasApiKey: Boolean((process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim()),
-      model: 'gemini-3.8-flash'
+      model: process.env.GEMINI_MODEL || 'gemini-1.5-flash'
     });
   }
 

@@ -260,6 +260,18 @@ export const Navbar: React.FC = () => {
             )}
           </div>
 
+          {/* Super Admin Portal Quick Pill */}
+          {currentUser?.role === 'super_admin' && (
+            <button
+              onClick={() => setActiveView('admin')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gold-400 hover:bg-gold-500 text-charcoal-900 font-extrabold text-xs shadow-subtle transition-all cursor-pointer"
+              title="Super Admin Management Portal"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-forest-900" />
+              <span>Admin Portal</span>
+            </button>
+          )}
+
           {/* Direct Sign In CTA Button (when unauthenticated) */}
           {!currentUser && !authLoading && (
             <button
@@ -359,6 +371,18 @@ export const Navbar: React.FC = () => {
                 )}
 
                 <div className="py-1 space-y-0.5 text-xs">
+                  {currentUser?.role === 'super_admin' && (
+                    <button
+                      onClick={() => {
+                        setActiveView('admin');
+                        setProfileDropdownOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-charcoal-900 bg-gold-100 hover:bg-gold-200 font-bold border border-gold-300 cursor-pointer mb-1"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-forest-700" />
+                      <span>Super Admin Management</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       setActiveView('settings');
