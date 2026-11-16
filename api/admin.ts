@@ -420,19 +420,38 @@ export async function processAdminLogin(req: any, res: any) {
   const adminEmail = (process.env.ADMIN_EMAIL || 'admin@studypilot.ai').toLowerCase().trim();
   const adminName = 'Super Administrator';
   const now = new Date().toISOString();
+  let effectiveAdminId = adminId;
 
   if (isNeonConfigured()) {
     await ensureDatabaseSchema();
-    await queryNeon(
-      `INSERT INTO studypilot_users (
-         id, email, password_hash, name, university, course, branch, year, semester, role, onboarding_completed, created_at, updated_at
-       ) VALUES ($1, $2, NULL, $3, 'StudyPilot AI System', 'Administration', 'Control Plane', 'Admin', 'Root', 'super_admin', TRUE, $4, $4)
-       ON CONFLICT (id) DO UPDATE SET
-         role = 'super_admin',
-         onboarding_completed = TRUE,
-         updated_at = CURRENT_TIMESTAMP;`,
-      [adminId, adminEmail, adminName, now]
+    const existing = await queryNeon<any>(
+      `SELECT id, name FROM studypilot_users WHERE LOWER(email) = LOWER($1) LIMIT 1;`,
+      [adminEmail]
     );
+    if (existing && existing.length > 0) {
+      effectiveAdminId = existing[0].id;
+      await queryNeon(
+        `UPDATE studypilot_users SET
+           name = COALESCE(NULLIF(name, ''), $1),
+           role = 'super_admin',
+           onboarding_completed = TRUE,
+           updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2;`,
+        [adminName, effectiveAdminId]
+      );
+    } else {
+      await queryNeon(
+        `INSERT INTO studypilot_users (
+           id, email, password_hash, name, university, course, branch, year, semester, role, onboarding_completed, created_at, updated_at
+         ) VALUES ($1, $2, NULL, $3, 'StudyPilot AI System', 'Administration', 'Control Plane', 'Admin', 'Root', 'super_admin', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         ON CONFLICT (id) DO UPDATE SET
+           email = EXCLUDED.email,
+           role = 'super_admin',
+           onboarding_completed = TRUE,
+           updated_at = CURRENT_TIMESTAMP;`,
+        [effectiveAdminId, adminEmail, adminName]
+      );
+    }
   } else {
     memoryUsers.set(adminId, {
       id: adminId,
@@ -455,11 +474,11 @@ export async function processAdminLogin(req: any, res: any) {
       `INSERT INTO studypilot_sessions (
          id, user_id, token_hash, expires_at, user_agent, ip_address, created_at
        ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP);`,
-      [crypto.randomUUID(), adminId, tokenHash, expiresAt, req.headers?.['user-agent'] || null, clientIp]
+      [crypto.randomUUID(), effectiveAdminId, tokenHash, expiresAt, req.headers?.['user-agent'] || null, clientIp]
     );
   } else {
     memorySessions.set(tokenHash, {
-      user_id: adminId,
+      user_id: effectiveAdminId,
       expires_at: expiresAt,
       ip_address: clientIp
     });
@@ -480,7 +499,7 @@ export async function processAdminLogin(req: any, res: any) {
 
   await insertAuditLog({
     id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    admin_id: adminId,
+    admin_id: effectiveAdminId,
     admin_email: adminEmail,
     action: 'ADMIN_LOGIN_SUCCESS',
     details: `Super Admin successfully authenticated from IP: ${clientIp}.`
@@ -491,7 +510,7 @@ export async function processAdminLogin(req: any, res: any) {
     message: 'Super Admin authentication successful.',
     redirectUrl: '/admin',
     user: {
-      id: adminId,
+      id: effectiveAdminId,
       email: adminEmail,
       name: adminName,
       role: 'super_admin',
