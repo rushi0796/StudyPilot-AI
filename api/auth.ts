@@ -523,7 +523,7 @@ export function isValidEmail(email: string): boolean {
   if (!email || typeof email !== 'string') return false;
   const cleaned = email.trim();
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return cleaned.length <= 255 && emailRegex.test(cleaned);
+  return cleaned.length <= 50 && emailRegex.test(cleaned);
 }
 
 export function validatePasswordStrength(password: string): { valid: boolean; error?: string } {
@@ -533,8 +533,8 @@ export function validatePasswordStrength(password: string): { valid: boolean; er
   if (password.length < 8) {
     return { valid: false, error: 'Password must be at least 8 characters long.' };
   }
-  if (password.length > 128) {
-    return { valid: false, error: 'Password cannot exceed 128 characters.' };
+  if (password.length > 50) {
+    return { valid: false, error: 'Password cannot exceed 50 characters.' };
   }
   return { valid: true };
 }
@@ -772,24 +772,24 @@ export async function processSignup(body: any, clientIp = '127.0.0.1') {
     };
   }
 
-  if (cleanName.length < 2 || cleanName.length > 70) {
+  if (cleanName.length < 2 || cleanName.length > 50) {
     return {
       status: 400,
-      body: { error: { message: 'Student name must be between 2 and 70 characters.', code: 'INVALID_NAME_LENGTH' } }
+      body: { error: { message: 'Student name must be between 2 and 50 characters.', code: 'INVALID_NAME_LENGTH' } }
     };
   }
 
-  if (cleanEmail.length < 5 || cleanEmail.length > 254 || !isValidEmail(cleanEmail)) {
+  if (cleanEmail.length < 5 || cleanEmail.length > 50 || !isValidEmail(cleanEmail)) {
     return {
       status: 400,
-      body: { error: { message: 'A valid university email address (maximum 254 characters) is required.', code: 'INVALID_EMAIL' } }
+      body: { error: { message: 'A valid university email address (maximum 50 characters) is required.', code: 'INVALID_EMAIL' } }
     };
   }
 
-  if (cleanPw.length < 8 || cleanPw.length > 100) {
+  if (cleanPw.length < 8 || cleanPw.length > 50) {
     return {
       status: 400,
-      body: { error: { message: 'Password must be between 8 and 100 characters long.', code: 'WEAK_PASSWORD' } }
+      body: { error: { message: 'Password must be between 8 and 50 characters long.', code: 'WEAK_PASSWORD' } }
     };
   }
 
@@ -800,24 +800,24 @@ export async function processSignup(body: any, clientIp = '127.0.0.1') {
     };
   }
 
-  if (cleanUni.length > 100) {
+  if (cleanUni.length > 50) {
     return {
       status: 400,
-      body: { error: { message: 'University name cannot exceed 100 characters.', code: 'INVALID_UNIVERSITY_LENGTH' } }
+      body: { error: { message: 'University name cannot exceed 50 characters.', code: 'INVALID_UNIVERSITY_LENGTH' } }
     };
   }
 
-  if (cleanCourse.length > 80 || cleanBranch.length > 80) {
+  if (cleanCourse.length > 50 || cleanBranch.length > 50) {
     return {
       status: 400,
-      body: { error: { message: 'Course and Branch cannot exceed 80 characters.', code: 'INVALID_COURSE_LENGTH' } }
+      body: { error: { message: 'Course and Branch cannot exceed 50 characters.', code: 'INVALID_COURSE_LENGTH' } }
     };
   }
 
-  if (cleanYear.length > 30 || cleanSemester.length > 30) {
+  if (cleanYear.length > 50 || cleanSemester.length > 50) {
     return {
       status: 400,
-      body: { error: { message: 'Academic Year and Semester cannot exceed 30 characters.', code: 'INVALID_TERM_LENGTH' } }
+      body: { error: { message: 'Academic Year and Semester cannot exceed 50 characters.', code: 'INVALID_TERM_LENGTH' } }
     };
   }
 
@@ -896,11 +896,11 @@ export async function processCompleteOnboarding(req: any, body: any) {
   }
 
   const { university, course, branch, year, semester, preferredLanguage } = body || {};
-  const updatedUniversity = typeof university === 'string' && university.trim() ? university.trim().slice(0, 100) : user.university;
-  const updatedCourse = typeof course === 'string' && course.trim() ? course.trim().slice(0, 80) : user.course;
-  const updatedBranch = typeof branch === 'string' && branch.trim() ? branch.trim().slice(0, 80) : user.branch;
-  const updatedYear = typeof year === 'string' && year.trim() ? year.trim().slice(0, 30) : user.year;
-  const updatedSemester = typeof semester === 'string' && semester.trim() ? semester.trim().slice(0, 30) : user.semester;
+  const updatedUniversity = typeof university === 'string' && university.trim() ? university.trim().slice(0, 50) : user.university;
+  const updatedCourse = typeof course === 'string' && course.trim() ? course.trim().slice(0, 50) : user.course;
+  const updatedBranch = typeof branch === 'string' && branch.trim() ? branch.trim().slice(0, 50) : user.branch;
+  const updatedYear = typeof year === 'string' && year.trim() ? year.trim().slice(0, 50) : user.year;
+  const updatedSemester = typeof semester === 'string' && semester.trim() ? semester.trim().slice(0, 50) : user.semester;
   const updatedLanguage = typeof preferredLanguage === 'string' && preferredLanguage.trim() ? preferredLanguage.trim().slice(0, 10) : user.preferred_language;
 
   if (!isNeonConfigured()) {

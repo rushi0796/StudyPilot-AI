@@ -295,10 +295,14 @@ export const RevisionPlannerView: React.FC = () => {
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-charcoal-700 font-semibold mb-1">Topic Title</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-charcoal-700 font-semibold">Topic Title</label>
+                  <span className="text-[10px] text-charcoal-400 font-mono">{newTitle.length}/50</span>
+                </div>
                 <input
                   type="text"
                   required
+                  maxLength={50}
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="e.g. Master Armstrong Axioms and Transitive FDs"
@@ -344,9 +348,13 @@ export const RevisionPlannerView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-charcoal-700 font-semibold mb-1">Target Date</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-charcoal-700 font-semibold">Target Date</label>
+                  <span className="text-[10px] text-charcoal-400 font-mono">{newDueDate.length}/50</span>
+                </div>
                 <input
                   type="text"
+                  maxLength={50}
                   value={newDueDate}
                   onChange={(e) => setNewDueDate(e.target.value)}
                   placeholder="e.g. Tomorrow 08:00 PM or Oct 15"

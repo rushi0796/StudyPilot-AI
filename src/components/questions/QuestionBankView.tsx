@@ -187,6 +187,7 @@ export const QuestionBankView: React.FC = () => {
             <Search className="w-4 h-4 text-charcoal-400 absolute left-3.5 top-2.5" />
             <input
               type="text"
+              maxLength={50}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by keywords (e.g. Normalization, ACID, Armstrong, Candidate Key)..."
@@ -388,9 +389,13 @@ export const QuestionBankView: React.FC = () => {
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-charcoal-700 font-bold mb-1">Target Topic</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-charcoal-700 font-bold">Target Topic</label>
+                  <span className="text-[10px] text-charcoal-400 font-mono">{generateTopic.length}/50</span>
+                </div>
                 <input
                   type="text"
+                  maxLength={50}
                   value={generateTopic}
                   onChange={(e) => setGenerateTopic(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-academic-bg border border-[#E5E0D5] text-charcoal-900 focus:border-forest-500 focus:outline-none"

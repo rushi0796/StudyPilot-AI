@@ -298,6 +298,7 @@ export const MyFilesView: React.FC = () => {
           <Search className="w-4 h-4 text-charcoal-400 absolute left-3.5 top-2.5" />
           <input
             type="text"
+            maxLength={50}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search uploaded materials..."

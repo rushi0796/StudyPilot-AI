@@ -203,24 +203,49 @@ async function runTests() {
   });
   check('Login with non-existent email returns HTTP 401 Unauthorized', nonexistentLogin.status === 401);
 
-  // Character Limit Validation Tests
-  console.log('\n6c. Testing Character Limits & Input Validation:');
+  // Character Limit Validation Tests (Strict 50-Char Limit)
+  console.log('\n6c. Testing Character Limits & Input Validation (Strict 50-Character Limit):');
   const longNameSignup = await processSignup({
     email: 'longname@sgu.ac.in',
     password: 'Password123!',
-    name: 'A'.repeat(71)
+    name: 'A'.repeat(51)
   });
-  check('Rejects name exceeding 70 characters with HTTP 400', 
+  check('Rejects name exceeding 50 characters with HTTP 400', 
     longNameSignup.status === 400 && longNameSignup.body?.error?.code === 'INVALID_NAME_LENGTH');
 
   const longUniSignup = await processSignup({
     email: 'longuni@sgu.ac.in',
     password: 'Password123!',
     name: 'Valid Name',
-    university: 'U'.repeat(101)
+    university: 'U'.repeat(51)
   });
-  check('Rejects university exceeding 100 characters with HTTP 400', 
+  check('Rejects university exceeding 50 characters with HTTP 400', 
     longUniSignup.status === 400 && longUniSignup.body?.error?.code === 'INVALID_UNIVERSITY_LENGTH');
+
+  const longCourseSignup = await processSignup({
+    email: 'longcourse@sgu.ac.in',
+    password: 'Password123!',
+    name: 'Valid Name',
+    course: 'C'.repeat(51)
+  });
+  check('Rejects course exceeding 50 characters with HTTP 400', 
+    longCourseSignup.status === 400 && longCourseSignup.body?.error?.code === 'INVALID_COURSE_LENGTH');
+
+  const longEmailSignup = await processSignup({
+    email: 'a'.repeat(45) + '@sgu.ac.in', // 55 chars
+    password: 'Password123!',
+    name: 'Valid Name'
+  });
+  check('Rejects email exceeding 50 characters with HTTP 400', 
+    longEmailSignup.status === 400 && longEmailSignup.body?.error?.code === 'INVALID_EMAIL');
+
+  const longPasswordSignup = await processSignup({
+    email: 'longpw@sgu.ac.in',
+    password: 'P'.repeat(51),
+    name: 'Valid Name'
+  });
+  check('Rejects password exceeding 50 characters with HTTP 400', 
+    longPasswordSignup.status === 400 && longPasswordSignup.body?.error?.code === 'WEAK_PASSWORD');
 
   // 7. Current Session Verification (/api/auth/me) & Returning User Flow
   console.log('\n7. Testing Current Session (/api/auth/me) & Returning User Flow:');

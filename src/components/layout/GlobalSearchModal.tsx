@@ -72,6 +72,7 @@ export const GlobalSearchModal: React.FC = () => {
           <input
             type="text"
             autoFocus
+            maxLength={50}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search concepts, questions, syllabus, or study materials..."

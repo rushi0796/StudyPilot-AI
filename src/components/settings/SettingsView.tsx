@@ -327,9 +327,13 @@ export const SettingsView: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
             <div>
-              <label className="block text-charcoal-400 font-semibold mb-1">Student Full Name</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-charcoal-400 font-semibold">Student Full Name</label>
+                <span className="text-[10px] text-charcoal-400 font-mono">{name.length}/50</span>
+              </div>
               <input
                 type="text"
+                maxLength={50}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-academic-bg border border-[#E5E0D5] text-charcoal-900 focus:border-forest-500 focus:outline-none"
@@ -337,9 +341,13 @@ export const SettingsView: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-charcoal-400 font-semibold mb-1">University / Institute</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-charcoal-400 font-semibold">University / Institute</label>
+                <span className="text-[10px] text-charcoal-400 font-mono">{university.length}/50</span>
+              </div>
               <input
                 type="text"
+                maxLength={50}
                 value={university}
                 onChange={(e) => setUniversity(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-academic-bg border border-[#E5E0D5] text-charcoal-900 focus:border-forest-500 focus:outline-none"
@@ -347,9 +355,13 @@ export const SettingsView: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-charcoal-400 font-semibold mb-1">Degree Course</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-charcoal-400 font-semibold">Degree Course</label>
+                <span className="text-[10px] text-charcoal-400 font-mono">{course.length}/50</span>
+              </div>
               <input
                 type="text"
+                maxLength={50}
                 value={course}
                 onChange={(e) => setCourse(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-academic-bg border border-[#E5E0D5] text-charcoal-900 focus:border-forest-500 focus:outline-none"
@@ -357,9 +369,13 @@ export const SettingsView: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-charcoal-400 font-semibold mb-1">Department / Branch</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-charcoal-400 font-semibold">Department / Branch</label>
+                <span className="text-[10px] text-charcoal-400 font-mono">{branch.length}/50</span>
+              </div>
               <input
                 type="text"
+                maxLength={50}
                 value={branch}
                 onChange={(e) => setBranch(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-academic-bg border border-[#E5E0D5] text-charcoal-900 focus:border-forest-500 focus:outline-none"
