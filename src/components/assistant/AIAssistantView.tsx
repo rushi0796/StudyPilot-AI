@@ -60,10 +60,10 @@ export const AIAssistantView: React.FC = () => {
   } = useApp();
 
   const [inputMessage, setInputMessage] = useState('');
-  const [selectedTopic, setSelectedTopic] = useState('Relational Database Normalization');
+  const [selectedTopic, setSelectedTopic] = useState(() => activeSubject?.units[0]?.topics[0]?.title || activeSubject?.name || 'General Doubt');
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('simple');
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [bookmarkedTopics, setBookmarkedTopics] = useState<string[]>(['Relational Database Normalization']);
+  const [bookmarkedTopics, setBookmarkedTopics] = useState<string[]>([]);
   const [simplificationLevel, setSimplificationLevel] = useState(1);
   const [isTyping, setIsTyping] = useState(false);
   const [groundWithFiles, setGroundWithFiles] = useState(true);

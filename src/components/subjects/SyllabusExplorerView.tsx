@@ -29,8 +29,8 @@ export const SyllabusExplorerView: React.FC = () => {
     addUploadedDocument
   } = useApp();
 
-  const [expandedUnitId, setExpandedUnitId] = useState<string>(activeSubject.units[2]?.id || activeSubject.units[0]?.id || '');
-  const [selectedTopicId, setSelectedTopicId] = useState<string>(activeSubject.units[2]?.topics[1]?.id || activeSubject.units[0]?.topics[0]?.id || '');
+  const [expandedUnitId, setExpandedUnitId] = useState<string>(activeSubject.units[0]?.id || '');
+  const [selectedTopicId, setSelectedTopicId] = useState<string>(activeSubject.units[0]?.topics[0]?.id || '');
 
   // File upload state
   const [uploadModalOpen, setUploadModalOpen] = useState(false);

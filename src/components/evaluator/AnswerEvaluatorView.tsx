@@ -36,14 +36,7 @@ export const AnswerEvaluatorView: React.FC = () => {
     selectedQuestionForEvaluation || questionBank.find(q => q.marks === 5) || questionBank[0]
   );
 
-  const [studentAnswerText, setStudentAnswerText] = useState(
-    `Database normalization is the process of structuring relational database schemas to eliminate redundancy.
-It decomposes tables into normal forms: 1NF, 2NF, and 3NF.
-1NF requires atomic values without repeating groups.
-2NF removes partial functional dependencies on composite candidate keys.
-3NF eliminates transitive dependencies (X -> Y -> Z where Z is a non-prime attribute).
-For example, in a student-course relation, we decompose into Student(RollNo, Name, DeptCode) and Department(DeptCode, DeptName, HOD) to prevent insertion and update anomalies.`
-  );
+  const [studentAnswerText, setStudentAnswerText] = useState('');
 
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationProgress, setEvaluationProgress] = useState(0);
@@ -149,7 +142,7 @@ Both tables are now in 3NF and free from transitive anomalies.`
     if (!evaluationResult) return;
     addRevisionTask({
       title: `Revise Missing Points: ${selectedQuestion.topic} (${evaluationResult.estimatedMarks}/${evaluationResult.maxMarks} Marks)`,
-      subject: "Database Management Systems",
+      subject: selectedQuestion.subjectCode || "Core Curriculum",
       priority: 'high',
       reason: 'Evaluator Weakness',
       dueDate: 'Tomorrow',

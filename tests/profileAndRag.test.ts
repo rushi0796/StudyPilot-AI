@@ -177,15 +177,17 @@ async function runProfileAndRagTests() {
   const docsForGuest = filterDocumentsForUser(sharedDocs, undefined);
 
   assert(docsForAlpha.some(d => d.id === 'doc_student_alpha_private'), 'User Alpha sees their own private document');
-  assert(docsForAlpha.some(d => d.id === 'doc_dbms_handout'), 'User Alpha sees the preloaded curriculum document');
+  assert(!docsForAlpha.some(d => d.id === 'doc_dbms_handout'), 'CLEAN ZERO SLATE: User Alpha does NOT see preloaded DBMS handout');
   assert(!docsForAlpha.some(d => d.id === 'doc_student_beta_private'), 'PRIVACY ENFORCED: User Alpha CANNOT see User Beta private document');
 
   assert(docsForBeta.some(d => d.id === 'doc_student_beta_private'), 'User Beta sees their own private document');
-  assert(docsForBeta.some(d => d.id === 'doc_dbms_handout'), 'User Beta sees the preloaded curriculum document');
+  assert(!docsForBeta.some(d => d.id === 'doc_dbms_handout'), 'CLEAN ZERO SLATE: User Beta does NOT see preloaded DBMS handout');
   assert(!docsForBeta.some(d => d.id === 'doc_student_alpha_private'), 'PRIVACY ENFORCED: User Beta CANNOT see User Alpha private document');
 
+  assert(docsForGuest.some(d => d.id === 'doc_dbms_handout'), 'Guest demo mode sees the preloaded curriculum handout');
   assert(!docsForGuest.some(d => d.id === 'doc_student_alpha_private'), 'Guest user CANNOT see User Alpha private document');
   assert(!docsForGuest.some(d => d.id === 'doc_student_beta_private'), 'Guest user CANNOT see User Beta private document');
+  assert(filterDocumentsForUser(sharedDocs, 'new_student_007').length === 0, 'CLEAN ZERO SLATE: Brand new registered user has exactly 0 documents');
 
   console.log('\n======================================================');
   console.log(`TEST RESULTS: ${passedTests} of ${totalTests} assertions passed.`);

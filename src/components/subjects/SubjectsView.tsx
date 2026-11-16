@@ -17,7 +17,7 @@ import {
 import { useApp } from '../../context/AppContext';
 
 export const SubjectsView: React.FC = () => {
-  const { subjects, setActiveSubjectId, setActiveView } = useApp();
+  const { subjects, setActiveSubjectId, setActiveView, studentProfile } = useApp();
 
   const getSubjectIcon = (iconName: string) => {
     switch (iconName) {
@@ -54,7 +54,7 @@ export const SubjectsView: React.FC = () => {
             My Subjects
           </h1>
           <p className="text-xs text-charcoal-500 mt-1">
-            Enrolled curriculum for Sanjay Ghodawat University • B.Tech Artificial Intelligence (Semester III)
+            Enrolled curriculum for {studentProfile.university} • {studentProfile.course} in {studentProfile.branch} ({studentProfile.semester})
           </p>
         </div>
 
@@ -123,10 +123,15 @@ export const SubjectsView: React.FC = () => {
                 </div>
 
                 {/* Recently Studied */}
-                {sub.recentlyStudiedTopic && (
+                {sub.recentlyStudiedTopic ? (
                   <div className="mt-3 p-2.5 rounded-xl bg-sage-50 border border-sage-200 text-[11px] text-charcoal-700">
                     <span className="text-[10px] text-charcoal-400 block font-bold uppercase tracking-wider">Recently Studied</span>
                     <p className="truncate font-semibold text-charcoal-900 mt-0.5">{sub.recentlyStudiedTopic}</p>
+                  </div>
+                ) : (
+                  <div className="mt-3 p-2.5 rounded-xl bg-academic-bg border border-academic-border text-[11px] text-charcoal-500">
+                    <span className="text-[10px] text-charcoal-400 block font-bold uppercase tracking-wider">Status</span>
+                    <p className="font-semibold text-charcoal-700 mt-0.5">Ready to begin • 0% completed</p>
                   </div>
                 )}
               </div>

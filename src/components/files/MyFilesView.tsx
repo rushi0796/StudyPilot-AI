@@ -341,20 +341,15 @@ export const MyFilesView: React.FC = () => {
                 ? 'Upload your semester syllabus, lecture notes, or past papers (PDF, DOCX, TXT) to ground AI doubt-solving in your curriculum.' 
                 : 'Try adjusting your search query or switching to all formats.'}
             </p>
-            {uploadedDocuments.length === 0 && INITIAL_PRELOADED_DOCUMENTS.length > 0 && (
+            {uploadedDocuments.length === 0 && (
               <div className="mt-4">
                 <button
                   type="button"
-                  onClick={() => {
-                    const sample = INITIAL_PRELOADED_DOCUMENTS[0];
-                    if (sample) {
-                      addUploadedDocument(sample);
-                    }
-                  }}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-forest-700 bg-forest-50 hover:bg-forest-100 border border-forest-200 shadow-sm transition-all cursor-pointer"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-forest-500 hover:bg-forest-600 shadow-sm transition-all cursor-pointer"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-forest-600" />
-                  <span>Load SGU Sample Handout (DBMS Unit 3)</span>
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload Your First Study File</span>
                 </button>
               </div>
             )}

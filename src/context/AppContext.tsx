@@ -16,6 +16,7 @@ import {
   INITIAL_STUDENT_PROFILE, 
   DEFAULT_NEW_STUDENT_PROFILE,
   SUBJECTS_DATA, 
+  getCleanSubjects,
   QUESTION_BANK_DATA, 
   INITIAL_REVISION_TASKS 
 } from '../data/mockData';
@@ -409,14 +410,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return null;
   };
 
-  // Subjects state
+  // Subjects state with per-user scoping and clean zero-state for authenticated students
   const [subjects, setSubjects] = useState<Subject[]>(() => {
-    const saved = localStorage.getItem('studypilot_subjects');
+    if (currentUser?.id) {
+      const key = `studypilot_subjects_${currentUser.id}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+      }
+      return getCleanSubjects();
+    }
+    const saved = localStorage.getItem('studypilot_subjects_guest');
     if (saved) {
       try { return JSON.parse(saved); } catch (e) { /* ignore */ }
     }
     return SUBJECTS_DATA;
   });
+
+  // Reload user-scoped subjects when authenticated user changes
+  useEffect(() => {
+    if (currentUser?.id) {
+      const key = `studypilot_subjects_${currentUser.id}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          setSubjects(JSON.parse(saved));
+          return;
+        } catch (e) { /* ignore */ }
+      }
+      setSubjects(getCleanSubjects());
+    } else {
+      const saved = localStorage.getItem('studypilot_subjects_guest');
+      if (saved) {
+        try {
+          setSubjects(JSON.parse(saved));
+          return;
+        } catch (e) { /* ignore */ }
+      }
+      setSubjects(SUBJECTS_DATA);
+    }
+  }, [currentUser?.id]);
 
   const [activeSubjectId, setActiveSubjectId] = useState<string>('cs201');
   const activeSubject = subjects.find(s => s.id === activeSubjectId) || subjects[0];
@@ -430,14 +463,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return QUESTION_BANK_DATA;
   });
 
-  // Revision tasks state
+  // Revision tasks state with strict per-user scoping (authenticated students start at 0 tasks)
   const [revisionTasks, setRevisionTasks] = useState<RevisionTask[]>(() => {
-    const saved = localStorage.getItem('studypilot_revisions');
+    if (currentUser?.id) {
+      const key = `studypilot_revisions_${currentUser.id}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+      }
+      return []; // Real authenticated students start with empty revision planner
+    }
+    const saved = localStorage.getItem('studypilot_revisions_guest');
     if (saved) {
       try { return JSON.parse(saved); } catch (e) { /* ignore */ }
     }
     return INITIAL_REVISION_TASKS;
   });
+
+  // Reload user-scoped revision tasks when authenticated student switches
+  useEffect(() => {
+    if (currentUser?.id) {
+      const key = `studypilot_revisions_${currentUser.id}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          setRevisionTasks(JSON.parse(saved));
+          return;
+        } catch (e) { /* ignore */ }
+      }
+      setRevisionTasks([]);
+    } else {
+      const saved = localStorage.getItem('studypilot_revisions_guest');
+      if (saved) {
+        try {
+          setRevisionTasks(JSON.parse(saved));
+          return;
+        } catch (e) { /* ignore */ }
+      }
+      setRevisionTasks(INITIAL_REVISION_TASKS);
+    }
+  }, [currentUser?.id]);
 
   // Active question sent to Answer Evaluator
   const [selectedQuestionForEvaluation, setSelectedQuestionForEvaluation] = useState<QuestionItem | undefined>(undefined);
@@ -540,16 +605,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [uploadedDocuments, currentUser?.id]);
 
   useEffect(() => {
-    localStorage.setItem('studypilot_subjects', JSON.stringify(subjects));
-  }, [subjects]);
+    const key = currentUser?.id ? `studypilot_subjects_${currentUser.id}` : 'studypilot_subjects_guest';
+    localStorage.setItem(key, JSON.stringify(subjects));
+  }, [subjects, currentUser?.id]);
 
   useEffect(() => {
     localStorage.setItem('studypilot_questions', JSON.stringify(questionBank));
   }, [questionBank]);
 
   useEffect(() => {
-    localStorage.setItem('studypilot_revisions', JSON.stringify(revisionTasks));
-  }, [revisionTasks]);
+    const key = currentUser?.id ? `studypilot_revisions_${currentUser.id}` : 'studypilot_revisions_guest';
+    localStorage.setItem(key, JSON.stringify(revisionTasks));
+  }, [revisionTasks, currentUser?.id]);
 
   // Handle global shortcut Ctrl+K / Cmd+K
   useEffect(() => {

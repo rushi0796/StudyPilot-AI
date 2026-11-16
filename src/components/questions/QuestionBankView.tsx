@@ -33,7 +33,7 @@ export const QuestionBankView: React.FC = () => {
   const [selectedType, setSelectedType] = useState<string>('all');
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
 
-  const [expandedAnswerId, setExpandedAnswerId] = useState<string | null>('q_norm_5m');
+  const [expandedAnswerId, setExpandedAnswerId] = useState<string | null>(null);
   const [selectedForPractice, setSelectedForPractice] = useState<string[]>([]);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [generateTopic, setGenerateTopic] = useState('Transaction Concurrency & 2PL');

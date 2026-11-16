@@ -30,9 +30,7 @@ export const PracticeTestsView: React.FC = () => {
 
   const [testState, setTestState] = useState<'intro' | 'active' | 'results'>('intro');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [userAnswers, setUserAnswers] = useState<{ [qId: string]: string | number }>({
-    qz_1: 1, // sample pre-filled
-  });
+  const [userAnswers, setUserAnswers] = useState<{ [qId: string]: string | number }>({});
   const [markedForReview, setMarkedForReview] = useState<string[]>([]);
   const [timeLeftSeconds, setTimeLeftSeconds] = useState(15 * 60); // 15 mins
   const [isTimerRunning, setIsTimerRunning] = useState(false);

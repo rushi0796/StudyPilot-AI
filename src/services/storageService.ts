@@ -41,17 +41,18 @@ function getStorageKey(userId?: string): string {
 /**
  * Filter documents to ensure complete cross-student isolation:
  * - Documents with matching userId
- * - Preloaded academic curriculum demo documents (system-provided)
+ * - Preloaded academic curriculum demo documents ONLY visible in unauthenticated guest/demo mode
+ * - Authenticated students start with a 100% clean, empty document workspace
  * - Never returns documents belonging to another student
  */
 export function filterDocumentsForUser(docs: UploadedDocument[], userId?: string): UploadedDocument[] {
   const targetUser = userId || 'guest';
   return docs.filter(doc => {
-    // System preloaded documents are accessible to all
+    // System preloaded demo documents are strictly isolated to guest mode
     if (doc.id === 'doc_dbms_handout' || doc.id.startsWith('preloaded_')) {
-      return true;
+      return targetUser === 'guest';
     }
-    // Explicit student ownership check
+    // Explicit student ownership check for authenticated users
     if (doc.userId) {
       return doc.userId === targetUser;
     }

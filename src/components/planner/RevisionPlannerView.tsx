@@ -126,7 +126,9 @@ export const RevisionPlannerView: React.FC = () => {
             {revisionTasks.filter(t => t.priority === 'high' && !t.completed).length} Concepts
           </p>
           <p className="text-[11px] text-charcoal-500 font-medium">
-            Missed in recent DBMS normal forms & concurrency quizzes.
+            {revisionTasks.filter(t => t.priority === 'high' && !t.completed).length > 0 
+              ? 'Prioritized review driven by quiz and evaluator gap analysis.'
+              : 'No urgent review topics flagged. You are completely on track!'}
           </p>
         </div>
 
@@ -137,7 +139,11 @@ export const RevisionPlannerView: React.FC = () => {
             AI Revision Insight
           </span>
           <p className="text-xs text-charcoal-700 leading-relaxed">
-            Allocating 25 minutes to <strong>BCNF Dependency Preservation</strong> today will boost your estimated exam score to 85%+.
+            {revisionTasks.filter(t => !t.completed).length > 0 ? (
+              <>Allocating {revisionTasks.filter(t => !t.completed)[0].timeEstimateMinutes} minutes to <strong>{revisionTasks.filter(t => !t.completed)[0].title}</strong> will boost your exam mastery.</>
+            ) : (
+              'Your revision planner is clear! Take a practice quiz or evaluate an exam answer to auto-diagnose focus areas, or add custom goals above.'
+            )}
           </p>
         </div>
 
@@ -187,8 +193,14 @@ export const RevisionPlannerView: React.FC = () => {
         {filteredTasks.length === 0 ? (
           <div className="p-12 text-center text-charcoal-400 rounded-2xl bg-white border border-academic-border">
             <CheckCircle2 className="w-10 h-10 text-forest-600 mx-auto mb-2 opacity-60" />
-            <p className="font-bold text-charcoal-900">No tasks in this view!</p>
-            <p className="text-xs text-charcoal-500 mt-1">All prioritized study items have been completed.</p>
+            <p className="font-bold text-charcoal-900">
+              {totalCount === 0 ? 'No Revision Tasks Yet' : 'No tasks in this filter view!'}
+            </p>
+            <p className="text-xs text-charcoal-500 mt-1 max-w-sm mx-auto">
+              {totalCount === 0 
+                ? 'Your study planner is clear and ready. Click "Add Custom Revision Goal" above or complete practice quizzes to auto-schedule weak concepts.' 
+                : 'All matching prioritized study items have been completed.'}
+            </p>
           </div>
         ) : (
           filteredTasks.map((task) => (

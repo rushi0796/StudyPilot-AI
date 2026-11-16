@@ -476,6 +476,21 @@ export const SUBJECTS_DATA: Subject[] = [
   }
 ];
 
+export function getCleanSubjects(source: Subject[] = SUBJECTS_DATA): Subject[] {
+  return source.map(sub => ({
+    ...sub,
+    recentlyStudiedTopic: undefined,
+    lastStudiedDate: undefined,
+    units: sub.units.map(unit => ({
+      ...unit,
+      topics: unit.topics.map(topic => ({
+        ...topic,
+        status: 'not-started' as const
+      }))
+    }))
+  }));
+}
+
 export const QUESTION_BANK_DATA: QuestionItem[] = [
   {
     id: "q_norm_5m",
