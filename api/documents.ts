@@ -42,6 +42,7 @@ async function recordAuditLog(adminId: string, adminEmail: string, targetUserId:
   memoryAuditLogs.set(logId, record);
   if (isNeonConfigured()) {
     try {
+      await ensureDatabaseSchema();
       await queryNeon(
         `INSERT INTO studypilot_audit_logs (
            id, admin_id, admin_email, target_user_id, document_id, document_name, action, details, created_at
@@ -78,6 +79,77 @@ async function queryNeon<T = any>(queryText: string, params: any[] = []): Promis
   return (result as T[]) || [];
 }
 
+let schemaInitialized = false;
+
+export async function ensureDatabaseSchema(): Promise<void> {
+  if (schemaInitialized || !isNeonConfigured()) return;
+  try {
+    await queryNeon(`
+      CREATE TABLE IF NOT EXISTS studypilot_users (
+        id VARCHAR(64) PRIMARY KEY,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password_hash VARCHAR(255),
+        name VARCHAR(255) NOT NULL,
+        university VARCHAR(255) DEFAULT 'Sanjay Ghodawat University',
+        course VARCHAR(255) DEFAULT 'B.Tech',
+        branch VARCHAR(255) DEFAULT 'AIML',
+        year VARCHAR(64) DEFAULT '2nd Year',
+        semester VARCHAR(64) DEFAULT 'Semester III',
+        preferred_language VARCHAR(32) DEFAULT 'en',
+        avatar_url TEXT,
+        auth_provider VARCHAR(32) DEFAULT 'local',
+        google_id VARCHAR(255),
+        role VARCHAR(32) DEFAULT 'student',
+        onboarding_completed BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await queryNeon('ALTER TABLE studypilot_users ADD COLUMN IF NOT EXISTS role VARCHAR(32) DEFAULT \'student\';');
+    await queryNeon('ALTER TABLE studypilot_users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN DEFAULT FALSE;');
+
+    await queryNeon(`
+      CREATE TABLE IF NOT EXISTS studypilot_documents (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id VARCHAR(64) NOT NULL REFERENCES studypilot_users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        type VARCHAR(32) NOT NULL,
+        size INT NOT NULL,
+        upload_status VARCHAR(32) DEFAULT 'completed',
+        processing_status VARCHAR(32) DEFAULT 'indexed',
+        extracted_text TEXT,
+        chunks JSONB DEFAULT '[]'::jsonb,
+        chunk_count INT DEFAULT 0,
+        word_count INT DEFAULT 0,
+        file_data TEXT,
+        subject_id VARCHAR(64),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await queryNeon(`
+      CREATE TABLE IF NOT EXISTS studypilot_audit_logs (
+        id VARCHAR(64) PRIMARY KEY,
+        admin_id VARCHAR(64) NOT NULL,
+        admin_email VARCHAR(255) NOT NULL,
+        target_user_id VARCHAR(64),
+        target_user_email VARCHAR(255),
+        document_id VARCHAR(64),
+        document_name VARCHAR(255),
+        action VARCHAR(64) NOT NULL,
+        details TEXT,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    schemaInitialized = true;
+  } catch (err) {
+    console.warn('Documents ensureDatabaseSchema warning:', err);
+  }
+}
+
 export function getSessionTokenFromRequest(req: any): string | null {
   const cookieHeader = req?.headers?.cookie || req?.headers?.Cookie || '';
   if (cookieHeader) {
@@ -85,6 +157,9 @@ export function getSessionTokenFromRequest(req: any): string | null {
       const parsed = parseCookie(cookieHeader);
       if (parsed['studypilot_session']) {
         return parsed['studypilot_session'];
+      }
+      if (parsed['studypilot_admin_token']) {
+        return parsed['studypilot_admin_token'];
       }
     } catch {}
   }
@@ -97,19 +172,6 @@ export function getSessionTokenFromRequest(req: any): string | null {
 
 export function hashSessionToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
-}
-
-export function isSuperAdminEmail(email?: string): boolean {
-  if (!email) return false;
-  const adminEmails = (process.env.SUPER_ADMIN_EMAILS || '')
-    .split(',')
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean);
-  
-  const defaultAdmin = (process.env.ADMIN_EMAIL || 'admin@studypilot.ai').trim().toLowerCase();
-  if (defaultAdmin && email.toLowerCase() === defaultAdmin) return true;
-
-  return adminEmails.includes(email.toLowerCase());
 }
 
 export async function authenticateRequest(req: any): Promise<{ id: string; email: string; name: string; role: 'student' | 'super_admin' } | null> {
@@ -127,11 +189,12 @@ export async function authenticateRequest(req: any): Promise<{ id: string; email
       id: u.id,
       email: u.email,
       name: u.name,
-      role: (u.role === 'super_admin' || isSuperAdminEmail(u.email)) ? 'super_admin' : 'student'
+      role: u.role === 'super_admin' ? 'super_admin' : 'student'
     };
   }
 
   try {
+    await ensureDatabaseSchema();
     const rows = await queryNeon<any>(
       `SELECT u.id, u.email, u.name, u.role FROM studypilot_users u
        JOIN studypilot_sessions s ON u.id = s.user_id
@@ -141,7 +204,7 @@ export async function authenticateRequest(req: any): Promise<{ id: string; email
     );
     if (!rows[0]) return null;
     const u = rows[0];
-    const role: 'student' | 'super_admin' = (u.role === 'super_admin' || isSuperAdminEmail(u.email)) ? 'super_admin' : 'student';
+    const role: 'student' | 'super_admin' = u.role === 'super_admin' ? 'super_admin' : 'student';
     return {
       id: u.id,
       email: u.email,
@@ -218,6 +281,7 @@ export async function processUploadDocument(req: any, res: any) {
     memoryDocuments.set(record.id, record);
   } else {
     try {
+      await ensureDatabaseSchema();
       await queryNeon(
         `INSERT INTO studypilot_documents (
            id, user_id, name, type, size, upload_status, processing_status, extracted_text, chunks, chunk_count, word_count, file_data, subject_id, created_at, updated_at
@@ -251,12 +315,15 @@ export async function processUploadDocument(req: any, res: any) {
           record.updated_at
         ]
       );
-    } catch {
+    } catch (err: any) {
+      console.warn('Database error persisting document:', err);
       memoryDocuments.set(record.id, record);
     }
   }
 
   return res.status(201).json({
+    success: true,
+    message: `Document "${cleanName}" uploaded and indexed successfully.`,
     document: {
       id: record.id,
       name: record.name,
@@ -266,7 +333,6 @@ export async function processUploadDocument(req: any, res: any) {
       processingStatus: record.processing_status,
       chunkCount: record.chunk_count,
       wordCount: record.word_count,
-      subjectId: record.subject_id,
       createdAt: record.created_at
     }
   });
@@ -284,12 +350,16 @@ export async function processListDocuments(req: any, res: any) {
     });
   }
 
+  const queryAll = req.query?.all === 'true' || req.query?.all === true;
+  const isSuperAdmin = user.role === 'super_admin';
+
   if (!isNeonConfigured()) {
     const userDocs: any[] = [];
     for (const d of memoryDocuments.values()) {
-      if (d.user_id === user.id) {
+      if ((isSuperAdmin && queryAll) || d.user_id === user.id) {
         userDocs.push({
           id: d.id,
+          userId: d.user_id,
           name: d.name,
           type: d.type,
           size: d.size,
@@ -306,17 +376,28 @@ export async function processListDocuments(req: any, res: any) {
   }
 
   try {
-    const docs = await queryNeon<any>(
-      `SELECT id, name, type, size, upload_status, processing_status, chunk_count, word_count, subject_id, created_at
-       FROM studypilot_documents
-       WHERE user_id = $1
-       ORDER BY created_at DESC;`,
-      [user.id]
-    );
+    await ensureDatabaseSchema();
+    let docs: any[];
+    if (isSuperAdmin && queryAll) {
+      docs = await queryNeon<any>(
+        `SELECT id, user_id, name, type, size, upload_status, processing_status, chunk_count, word_count, subject_id, created_at
+         FROM studypilot_documents
+         ORDER BY created_at DESC;`
+      );
+    } else {
+      docs = await queryNeon<any>(
+        `SELECT id, name, type, size, upload_status, processing_status, chunk_count, word_count, subject_id, created_at
+         FROM studypilot_documents
+         WHERE user_id = $1
+         ORDER BY created_at DESC;`,
+        [user.id]
+      );
+    }
 
     return res.status(200).json({
       documents: docs.map(d => ({
         id: d.id,
+        userId: d.user_id,
         name: d.name,
         type: d.type,
         size: d.size,
@@ -350,6 +431,7 @@ export async function processGetDocument(req: any, res: any, docId: string, acti
     doc = memoryDocuments.get(docId) || null;
   } else {
     try {
+      await ensureDatabaseSchema();
       const rows = await queryNeon<DocumentRecord>(
         'SELECT * FROM studypilot_documents WHERE id = $1 LIMIT 1;',
         [docId]
@@ -456,6 +538,7 @@ export async function processDeleteDocument(req: any, res: any, docId: string) {
     doc = memoryDocuments.get(docId) || null;
   } else {
     try {
+      await ensureDatabaseSchema();
       const rows = await queryNeon<DocumentRecord>(
         'SELECT * FROM studypilot_documents WHERE id = $1 LIMIT 1;',
         [docId]
@@ -479,7 +562,7 @@ export async function processDeleteDocument(req: any, res: any, docId: string) {
   if (doc.user_id !== user.id && user.role !== 'super_admin') {
     return res.status(403).json({
       error: {
-        message: 'You do not have permission to delete this document.',
+        message: 'Forbidden. You do not have permission to delete this document.',
         code: 'FORBIDDEN',
         status: 403
       }
@@ -491,8 +574,14 @@ export async function processDeleteDocument(req: any, res: any, docId: string) {
   } else {
     try {
       await queryNeon('DELETE FROM studypilot_documents WHERE id = $1;', [docId]);
-    } catch {
-      memoryDocuments.delete(docId);
+    } catch (err: any) {
+      return res.status(500).json({
+        error: {
+          message: `Database error removing document: ${err?.message || 'Unknown error'}`,
+          code: 'DB_ERROR',
+          status: 500
+        }
+      });
     }
   }
 
@@ -504,7 +593,7 @@ export async function processDeleteDocument(req: any, res: any, docId: string) {
       doc.id,
       doc.name,
       'ADMIN_DELETE_DOCUMENT',
-      `Super Admin deleted student document "${doc.name}".`
+      `Super Admin deleted document "${doc.name}" owned by student ${doc.user_id}.`
     );
   }
 
@@ -515,16 +604,33 @@ export async function processDeleteDocument(req: any, res: any, docId: string) {
 }
 
 export default async function handler(req: any, res: any) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Origin', req.headers?.origin || '*');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
+  if (typeof req.body === 'string' && req.body.trim()) {
+    try {
+      req.body = JSON.parse(req.body);
+    } catch {}
+  }
+
+  const url = req.url || '';
+  if (!req.query && url.includes('?')) {
+    try {
+      const urlObj = new URL(url, 'http://localhost');
+      req.query = Object.fromEntries(urlObj.searchParams.entries());
+    } catch {
+      req.query = {};
+    }
+  }
+
   const docId = (req.query?.id || req.body?.id || '').toString();
-  const action = (req.query?.action || '').toString();
+  const action = (req.query?.action || req.body?.action || '').toString().toLowerCase();
 
   try {
     if (req.method === 'POST') {
@@ -553,7 +659,7 @@ export default async function handler(req: any, res: any) {
 
     return res.status(405).json({
       error: {
-        message: 'Method Not Allowed.',
+        message: 'Method Not Allowed. Use GET, POST, or DELETE.',
         code: 'METHOD_NOT_ALLOWED',
         status: 405
       }

@@ -25,10 +25,14 @@ export const AuthModal: React.FC = () => {
     authNotification,
     clearAuthNotification,
     login, 
-    signup 
+    signup,
+    loginAsAdmin
   } = useAuth();
 
-  // Form states
+  // Portal switch: Student Login vs Admin Login
+  const [portalMode, setPortalMode] = useState<'student' | 'admin'>('student');
+
+  // Student Form states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -40,6 +44,12 @@ export const AuthModal: React.FC = () => {
   const [year, setYear] = useState('2nd Year');
   const [semester, setSemester] = useState('Semester III');
 
+  // Admin Form states
+  const [adminPassword, setAdminPassword] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [adminError, setAdminError] = useState<string | null>(null);
+  const [isAdminSubmitting, setIsAdminSubmitting] = useState(false);
+
   // UI state
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,9 +58,11 @@ export const AuthModal: React.FC = () => {
   useEffect(() => {
     if (authModalOpen) {
       setFormError(null);
+      setAdminError(null);
       setIsSubmitting(false);
+      setIsAdminSubmitting(false);
     }
-  }, [authModalOpen, authModalMode]);
+  }, [authModalOpen, authModalMode, portalMode]);
 
   // Handle Escape key to close
   useEffect(() => {
@@ -65,7 +77,7 @@ export const AuthModal: React.FC = () => {
 
   if (!authModalOpen) return null;
 
-  const validateForm = (): boolean => {
+  const validateStudentForm = (): boolean => {
     const cleanEmail = email.trim();
     if (!cleanEmail) {
       setFormError('Please enter your university email address.');
@@ -103,9 +115,9 @@ export const AuthModal: React.FC = () => {
     return true;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleStudentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm() || isSubmitting) return;
+    if (!validateStudentForm() || isSubmitting) return;
 
     setIsSubmitting(true);
     setFormError(null);
@@ -131,14 +143,37 @@ export const AuthModal: React.FC = () => {
         if (!res.success) {
           setFormError(res.error || 'Failed to create student account.');
         } else {
-          // Signup successful! AuthContext has switched to 'signin' mode and set the success banner.
-          // Reset password fields while keeping registered email pre-filled.
           setPassword('');
           setConfirmPassword('');
         }
       }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleAdminSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminPassword.trim() || isAdminSubmitting) return;
+
+    setIsAdminSubmitting(true);
+    setAdminError(null);
+
+    try {
+      const res = await loginAsAdmin(adminPassword.trim());
+      if (res.success) {
+        closeAuthModal();
+        if (typeof window !== 'undefined') {
+          window.history.pushState({}, '', '/admin');
+          window.location.href = '/admin';
+        }
+      } else {
+        setAdminError(res.error || 'Incorrect administrator password.');
+      }
+    } catch (err: any) {
+      setAdminError(err?.message || 'Server error verifying administrator credentials.');
+    } finally {
+      setIsAdminSubmitting(false);
     }
   };
 
@@ -152,25 +187,45 @@ export const AuthModal: React.FC = () => {
         <div className="relative px-6 pt-6 pb-4 border-b border-[#E5E0D5] bg-gradient-to-b from-[#F7F5EF] to-white">
           <button
             onClick={closeAuthModal}
-            className="absolute top-5 right-5 p-2 rounded-xl text-charcoal-400 hover:text-charcoal-900 hover:bg-sage-100 transition-colors"
+            className="absolute top-5 right-5 p-2 rounded-xl text-charcoal-400 hover:text-charcoal-900 hover:bg-sage-100 transition-colors cursor-pointer"
             title="Close modal"
           >
             <X className="w-5 h-5" />
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-forest-600 text-white flex items-center justify-center shadow-md shadow-forest-600/20 overflow-hidden">
-              <img src="/logo.png" alt="StudyPilot AI" className="w-9 h-9 object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-              <Sparkles className="w-5 h-5 text-white" />
+            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shadow-md overflow-hidden transition-all ${
+              portalMode === 'admin' 
+                ? 'bg-[#1E231F] text-[#E2C785] shadow-black/30' 
+                : 'bg-forest-600 text-white shadow-forest-600/20'
+            }`}>
+              {portalMode === 'admin' ? (
+                <ShieldCheck className="w-6 h-6 text-[#E2C785]" />
+              ) : (
+                <Sparkles className="w-5 h-5 text-white" />
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-extrabold text-charcoal-900 tracking-tight">
                   StudyPilot AI
                 </h2>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-forest-50 text-forest-700 border border-forest-200">
-                  <ShieldCheck className="w-3 h-3 text-forest-600" />
-                  Student Portal
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                  portalMode === 'admin'
+                    ? 'bg-[#1E231F] text-[#E2C785] border-[#374138]'
+                    : 'bg-forest-50 text-forest-700 border-forest-200'
+                }`}>
+                  {portalMode === 'admin' ? (
+                    <>
+                      <Lock className="w-2.5 h-2.5 text-[#E2C785]" />
+                      Admin Console
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-3 h-3 text-forest-600" />
+                      Student Portal
+                    </>
+                  )}
                 </span>
               </div>
               <p className="text-xs text-charcoal-500 font-medium">
@@ -179,305 +234,414 @@ export const AuthModal: React.FC = () => {
             </div>
           </div>
 
-          {/* Mode Switcher Tabs */}
-          <div className="flex p-1 mt-5 bg-academic-bg rounded-2xl border border-[#E5E0D5]">
+          {/* TWO CLEARLY SEPARATED PORTAL OPTIONS: Student Login vs Admin Login */}
+          <div className="grid grid-cols-2 gap-2 p-1 mt-5 bg-academic-bg rounded-2xl border border-[#E5E0D5]">
             <button
               type="button"
-              onClick={() => setAuthModalMode('signin')}
-              className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
-                authModalMode === 'signin'
+              onClick={() => {
+                setPortalMode('student');
+                setFormError(null);
+                setAdminError(null);
+              }}
+              className={`py-2 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                portalMode === 'student'
                   ? 'bg-white text-forest-800 shadow-sm border border-[#E5E0D5]'
                   : 'text-charcoal-500 hover:text-charcoal-900'
               }`}
             >
-              Sign In
+              <GraduationCap className="w-3.5 h-3.5 text-forest-600" />
+              <span>Student Login</span>
             </button>
             <button
               type="button"
-              onClick={() => setAuthModalMode('signup')}
-              className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
-                authModalMode === 'signup'
-                  ? 'bg-white text-forest-800 shadow-sm border border-[#E5E0D5]'
+              onClick={() => {
+                setPortalMode('admin');
+                setFormError(null);
+                setAdminError(null);
+              }}
+              className={`py-2 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                portalMode === 'admin'
+                  ? 'bg-charcoal-900 text-[#E2C785] shadow-sm border border-charcoal-700'
                   : 'text-charcoal-500 hover:text-charcoal-900'
               }`}
             >
-              Create Account
+              <Lock className="w-3.5 h-3.5 text-[#C59B52]" />
+              <span>Admin Login</span>
             </button>
           </div>
-        </div>
 
-        {/* Modal Body / Form */}
-        <div className="px-6 py-5 overflow-y-auto flex-1">
-          {/* Notification from OAuth redirects */}
-          {authNotification && (
-            <div className={`mb-4 p-3.5 rounded-2xl border flex items-start gap-2.5 animate-in fade-in ${
-              authNotification.type === 'success' 
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
-                : 'bg-rose-50 border-rose-200 text-rose-800'
-            }`}>
-              {authNotification.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
-              )}
-              <div className="text-xs font-medium leading-relaxed flex-1">
-                {authNotification.message}
-              </div>
-              <button 
-                type="button" 
-                onClick={clearAuthNotification}
-                className="text-charcoal-400 hover:text-charcoal-700"
+          {/* Student Sub-tabs: Sign In vs Create Account */}
+          {portalMode === 'student' && (
+            <div className="flex p-1 mt-3 bg-white rounded-xl border border-[#E5E0D5]">
+              <button
+                type="button"
+                onClick={() => setAuthModalMode('signin')}
+                className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                  authModalMode === 'signin'
+                    ? 'bg-forest-50 text-forest-800 border border-forest-200'
+                    : 'text-charcoal-500 hover:text-charcoal-900'
+                }`}
               >
-                <X className="w-3.5 h-3.5" />
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthModalMode('signup')}
+                className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                  authModalMode === 'signup'
+                    ? 'bg-forest-50 text-forest-800 border border-forest-200'
+                    : 'text-charcoal-500 hover:text-charcoal-900'
+                }`}
+              >
+                Create Account
               </button>
             </div>
           )}
+        </div>
 
-          {formError && (
-            <div className="mb-4 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 flex items-start gap-2.5 text-rose-800 animate-in fade-in">
-              <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
-              <div className="text-xs font-medium leading-relaxed flex-1">
-                {formError}
+        {/* Modal Body */}
+        <div className="px-6 py-5 overflow-y-auto flex-1">
+          {/* ==========================================================
+              ADMIN LOGIN SCREEN (Minimal, Single Password Field Only)
+             ========================================================== */}
+          {portalMode === 'admin' ? (
+            <div className="space-y-4 py-1">
+              <div className="bg-[#1E231F] text-white p-4 rounded-2xl border border-[#3A463B]">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#E2C785] uppercase tracking-wider mb-1">
+                  <ShieldCheck className="w-4 h-4 text-[#E2C785]" />
+                  <span>Super Admin Authentication</span>
+                </div>
+                <p className="text-[11px] text-[#A0A89C] leading-relaxed">
+                  Restricted operational access. Single-password verification enforced exclusively on the server.
+                </p>
               </div>
-            </div>
-          )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {authModalMode === 'signup' && (
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-charcoal-800">
-                    Student Full Name <span className="text-rose-500">*</span>
+              {adminError && (
+                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                  <div className="leading-relaxed font-medium">{adminError}</div>
+                </div>
+              )}
+
+              <form onSubmit={handleAdminSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-charcoal-800 uppercase tracking-wider mb-2">
+                    Administrator Password <span className="text-rose-500">*</span>
                   </label>
-                  <span className="text-[10px] text-charcoal-400 font-mono">
-                    {name.length}/{VALIDATION_LIMITS.NAME_MAX}
-                  </span>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-charcoal-400 absolute left-3.5 top-3.5" />
+                    <input
+                      type={showAdminPassword ? 'text' : 'password'}
+                      required
+                      autoFocus
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      placeholder="Enter Super Admin Security Key"
+                      className="w-full pl-10 pr-11 py-3 text-sm bg-academic-bg border border-[#E5E0D5] rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C59B52] focus:border-[#C59B52] transition-all font-mono text-charcoal-900"
+                      disabled={isAdminSubmitting}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminPassword(!showAdminPassword)}
+                      className="absolute right-3.5 top-3.5 text-charcoal-400 hover:text-charcoal-800 cursor-pointer"
+                      title={showAdminPassword ? 'Hide password' : 'Show password'}
+                      tabIndex={-1}
+                    >
+                      {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
-                <div className="relative">
-                  <User className="w-4 h-4 text-charcoal-400 absolute left-3.5 top-3" />
-                  <input
-                    type="text"
-                    required
-                    maxLength={VALIDATION_LIMITS.NAME_MAX}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Aken Rushikesh Gopal"
-                    className="w-full pl-10 pr-4 py-2.5 text-xs bg-academic-bg border border-[#E5E0D5] rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-forest-500 transition-all font-medium text-charcoal-900"
-                    disabled={isSubmitting}
-                  />
-                </div>
-              </div>
-            )}
 
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-bold text-charcoal-800">
-                  University Email Address <span className="text-rose-500">*</span>
-                </label>
-                {authModalMode === 'signup' && (
-                  <span className="text-[10px] text-charcoal-400 font-mono">
-                    {email.length}/{VALIDATION_LIMITS.EMAIL_MAX}
-                  </span>
-                )}
-              </div>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-charcoal-400 absolute left-3.5 top-3" />
-                <input
-                  type="email"
-                  required
-                  maxLength={VALIDATION_LIMITS.EMAIL_MAX}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="student@sgu.ac.in"
-                  className="w-full pl-10 pr-4 py-2.5 text-xs bg-academic-bg border border-[#E5E0D5] rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-forest-500 transition-all font-medium text-charcoal-900"
-                  disabled={isSubmitting}
-                />
-              </div>
-            </div>
+                <button
+                  type="submit"
+                  disabled={isAdminSubmitting || !adminPassword.trim()}
+                  className="w-full py-3.5 px-4 rounded-xl font-bold text-xs uppercase tracking-wider bg-charcoal-900 hover:bg-black text-[#E2C785] border border-charcoal-800 shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isAdminSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-[#E2C785]" />
+                      <span>Verifying Security Key...</span>
+                    </>
+                  ) : (
+                    <span>Login as Admin</span>
+                  )}
+                </button>
+              </form>
 
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-bold text-charcoal-800">
-                  Password <span className="text-rose-500">*</span>
-                </label>
-                {authModalMode === 'signup' && (
-                  <span className="text-[10px] text-charcoal-400 font-medium font-mono">
-                    {password.length}/{VALIDATION_LIMITS.PASSWORD_MAX}
-                  </span>
-                )}
-              </div>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-charcoal-400 absolute left-3.5 top-3" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  maxLength={VALIDATION_LIMITS.PASSWORD_MAX}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-10 py-2.5 text-xs bg-academic-bg border border-[#E5E0D5] rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-forest-500 transition-all font-medium text-charcoal-900"
-                  disabled={isSubmitting}
-                />
+              <div className="pt-2 text-center">
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-2.5 text-charcoal-400 hover:text-charcoal-700 cursor-pointer"
-                  tabIndex={-1}
+                  onClick={() => setPortalMode('student')}
+                  className="text-xs font-semibold text-charcoal-500 hover:text-charcoal-800 transition-colors cursor-pointer"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  ← Return to Student Login
                 </button>
               </div>
             </div>
-
-            {/* Confirm Password field on Signup */}
-            {authModalMode === 'signup' && (
-              <div>
-                <label className="block text-xs font-bold text-charcoal-800 mb-1.5">
-                  Confirm Password <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-charcoal-400 absolute left-3.5 top-3" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    maxLength={VALIDATION_LIMITS.PASSWORD_MAX}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full pl-10 pr-10 py-2.5 text-xs bg-academic-bg border border-[#E5E0D5] rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-forest-500 transition-all font-medium text-charcoal-900"
-                    disabled={isSubmitting}
-                  />
+          ) : (
+            /* ==========================================================
+                STUDENT LOGIN & SIGNUP SCREEN
+               ========================================================== */
+            <div>
+              {authNotification && (
+                <div className={`mb-4 p-3.5 rounded-2xl border flex items-start gap-2.5 animate-in fade-in ${
+                  authNotification.type === 'success' 
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                    : 'bg-rose-50 border-rose-200 text-rose-800'
+                }`}>
+                  {authNotification.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                  )}
+                  <div className="text-xs font-medium leading-relaxed flex-1">
+                    {authNotification.message}
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={clearAuthNotification}
+                    className="text-charcoal-400 hover:text-charcoal-700 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                {confirmPassword && password !== confirmPassword && (
-                  <p className="mt-1 text-[11px] text-rose-600 font-medium">
-                    Passwords do not match
-                  </p>
-                )}
-              </div>
-            )}
+              )}
 
-            {/* Academic Affiliation for Signup */}
-            {authModalMode === 'signup' && (
-              <div className="pt-2 border-t border-[#E5E0D5] space-y-3">
-                <div className="flex items-center gap-2 text-xs font-bold text-forest-700">
-                  <GraduationCap className="w-4 h-4" />
-                  <span>Academic Affiliation</span>
+              {formError && (
+                <div className="mb-4 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 flex items-start gap-2.5 text-rose-800 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-xs font-medium leading-relaxed flex-1">
+                    {formError}
+                  </div>
                 </div>
+              )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <form onSubmit={handleStudentSubmit} className="space-y-4">
+                {authModalMode === 'signup' && (
                   <div>
-                    <label className="block text-[11px] font-semibold text-charcoal-600 mb-1">
-                      University
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={VALIDATION_LIMITS.UNIVERSITY_MAX}
-                      value={university}
-                      onChange={(e) => setUniversity(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-academic-bg border border-[#E5E0D5] rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-forest-500"
-                      disabled={isSubmitting}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-charcoal-600 mb-1">
-                      Degree / Course
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={VALIDATION_LIMITS.COURSE_MAX}
-                      value={course}
-                      onChange={(e) => setCourse(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-academic-bg border border-[#E5E0D5] rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-forest-500"
-                      disabled={isSubmitting}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-charcoal-600 mb-1">
-                      Department / Branch
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={VALIDATION_LIMITS.BRANCH_MAX}
-                      value={branch}
-                      onChange={(e) => setBranch(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-academic-bg border border-[#E5E0D5] rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-forest-500"
-                      disabled={isSubmitting}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-charcoal-600 mb-1">
-                      Academic Term
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-bold text-charcoal-800">
+                        Student Full Name <span className="text-rose-500">*</span>
+                      </label>
+                      <span className="text-[10px] text-charcoal-400 font-mono">
+                        {name.length}/{VALIDATION_LIMITS.NAME_MAX}
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <User className="w-4 h-4 text-charcoal-400 absolute left-3.5 top-3" />
                       <input
                         type="text"
-                        maxLength={VALIDATION_LIMITS.YEAR_MAX}
-                        value={year}
-                        onChange={(e) => setYear(e.target.value)}
-                        placeholder="2nd Year"
-                        className="w-full px-2.5 py-2 text-xs bg-academic-bg border border-[#E5E0D5] rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-forest-500"
-                        disabled={isSubmitting}
-                      />
-                      <input
-                        type="text"
-                        maxLength={VALIDATION_LIMITS.SEMESTER_MAX}
-                        value={semester}
-                        onChange={(e) => setSemester(e.target.value)}
-                        placeholder="Semester III"
-                        className="w-full px-2.5 py-2 text-xs bg-academic-bg border border-[#E5E0D5] rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-forest-500"
+                        required
+                        maxLength={VALIDATION_LIMITS.NAME_MAX}
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="e.g. Aken Rushikesh Gopal"
+                        className="w-full pl-10 pr-4 py-2.5 text-xs bg-academic-bg border border-[#E5E0D5] rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-forest-500 transition-all font-medium text-charcoal-900"
                         disabled={isSubmitting}
                       />
                     </div>
                   </div>
+                )}
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-charcoal-800">
+                      University Email Address <span className="text-rose-500">*</span>
+                    </label>
+                    {authModalMode === 'signup' && (
+                      <span className="text-[10px] text-charcoal-400 font-mono">
+                        {email.length}/{VALIDATION_LIMITS.EMAIL_MAX}
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-charcoal-400 absolute left-3.5 top-3" />
+                    <input
+                      type="email"
+                      required
+                      maxLength={VALIDATION_LIMITS.EMAIL_MAX}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="student@sgu.ac.in"
+                      className="w-full pl-10 pr-4 py-2.5 text-xs bg-academic-bg border border-[#E5E0D5] rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-forest-500 transition-all font-medium text-charcoal-900"
+                      disabled={isSubmitting}
+                    />
+                  </div>
                 </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-charcoal-800">
+                      Password <span className="text-rose-500">*</span>
+                    </label>
+                    <span className="text-[10px] text-charcoal-400">At least 8 chars</span>
+                  </div>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-charcoal-400 absolute left-3.5 top-3" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      maxLength={VALIDATION_LIMITS.PASSWORD_MAX}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full pl-10 pr-10 py-2.5 text-xs bg-academic-bg border border-[#E5E0D5] rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-forest-500 transition-all font-medium text-charcoal-900"
+                      disabled={isSubmitting}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-2.5 text-charcoal-400 hover:text-charcoal-700 cursor-pointer"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {authModalMode === 'signup' && (
+                  <>
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-charcoal-800">
+                          Confirm Password <span className="text-rose-500">*</span>
+                        </label>
+                      </div>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 text-charcoal-400 absolute left-3.5 top-3" />
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          required
+                          maxLength={VALIDATION_LIMITS.PASSWORD_MAX}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Re-enter password"
+                          className="w-full pl-10 pr-10 py-2.5 text-xs bg-academic-bg border border-[#E5E0D5] rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-forest-500 focus:border-forest-500 transition-all font-medium text-charcoal-900"
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-[#E5E0D5] space-y-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-charcoal-600 mb-1">
+                          University / Institution
+                        </label>
+                        <input
+                          type="text"
+                          maxLength={VALIDATION_LIMITS.UNIVERSITY_MAX}
+                          value={university}
+                          onChange={(e) => setUniversity(e.target.value)}
+                          className="w-full px-3 py-2 text-xs bg-academic-bg border border-[#E5E0D5] rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-forest-500"
+                          disabled={isSubmitting}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-charcoal-600 mb-1">
+                            Degree / Course
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={VALIDATION_LIMITS.COURSE_MAX}
+                            value={course}
+                            onChange={(e) => setCourse(e.target.value)}
+                            className="w-full px-3 py-2 text-xs bg-academic-bg border border-[#E5E0D5] rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-forest-500"
+                            disabled={isSubmitting}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-charcoal-600 mb-1">
+                            Branch
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={VALIDATION_LIMITS.BRANCH_MAX}
+                            value={branch}
+                            onChange={(e) => setBranch(e.target.value)}
+                            className="w-full px-3 py-2 text-xs bg-academic-bg border border-[#E5E0D5] rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-forest-500"
+                            disabled={isSubmitting}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-charcoal-600 mb-1">
+                            Year
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={VALIDATION_LIMITS.YEAR_MAX}
+                            value={year}
+                            onChange={(e) => setYear(e.target.value)}
+                            className="w-full px-2.5 py-2 text-xs bg-academic-bg border border-[#E5E0D5] rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-forest-500"
+                            disabled={isSubmitting}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-charcoal-600 mb-1">
+                            Semester
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={VALIDATION_LIMITS.SEMESTER_MAX}
+                            value={semester}
+                            onChange={(e) => setSemester(e.target.value)}
+                            className="w-full px-2.5 py-2 text-xs bg-academic-bg border border-[#E5E0D5] rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-forest-500"
+                            disabled={isSubmitting}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full mt-2 py-3 px-4 rounded-xl font-bold text-xs bg-forest-600 hover:bg-forest-700 text-white shadow-md shadow-forest-600/20 flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>{authModalMode === 'signin' ? 'Signing In...' : 'Creating Student Account...'}</span>
+                    </>
+                  ) : (
+                    <span>{authModalMode === 'signin' ? 'Sign In to StudyPilot' : 'Complete Registration'}</span>
+                  )}
+                </button>
+              </form>
+
+              {/* Switch Mode Footer */}
+              <div className="mt-5 pt-4 border-t border-[#E5E0D5] text-center">
+                {authModalMode === 'signin' ? (
+                  <p className="text-xs text-charcoal-500 font-medium">
+                    New to StudyPilot AI?{' '}
+                    <button
+                      type="button"
+                      onClick={() => setAuthModalMode('signup')}
+                      className="font-bold text-forest-700 hover:text-forest-800 hover:underline cursor-pointer"
+                    >
+                      Create your student account
+                    </button>
+                  </p>
+                ) : (
+                  <p className="text-xs text-charcoal-500 font-medium">
+                    Already have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => setAuthModalMode('signin')}
+                      className="font-bold text-forest-700 hover:text-forest-800 hover:underline cursor-pointer"
+                    >
+                      Sign in to your portal
+                    </button>
+                  </p>
+                )}
               </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full mt-2 py-3 px-4 rounded-xl font-bold text-xs bg-forest-600 hover:bg-forest-700 text-white shadow-md shadow-forest-600/20 flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{authModalMode === 'signin' ? 'Signing In...' : 'Creating Student Account...'}</span>
-                </>
-              ) : (
-                <span>{authModalMode === 'signin' ? 'Sign In to StudyPilot' : 'Complete Registration'}</span>
-              )}
-            </button>
-          </form>
-
-          {/* Switch Mode Footer */}
-          <div className="mt-5 pt-4 border-t border-[#E5E0D5] text-center">
-            {authModalMode === 'signin' ? (
-              <p className="text-xs text-charcoal-500 font-medium">
-                New to StudyPilot AI?{' '}
-                <button
-                  type="button"
-                  onClick={() => setAuthModalMode('signup')}
-                  className="font-bold text-forest-700 hover:text-forest-800 hover:underline cursor-pointer"
-                >
-                  Create your student account
-                </button>
-              </p>
-            ) : (
-              <p className="text-xs text-charcoal-500 font-medium">
-                Already have an account?{' '}
-                <button
-                  type="button"
-                  onClick={() => setAuthModalMode('signin')}
-                  className="font-bold text-forest-700 hover:text-forest-800 hover:underline cursor-pointer"
-                >
-                  Sign in to your portal
-                </button>
-              </p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

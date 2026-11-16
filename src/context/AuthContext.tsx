@@ -53,7 +53,9 @@ export interface AuthContextType {
   bypassLoading: () => void;
   signup: (credentials: SignupCredentials) => Promise<{ success: boolean; requiresLogin?: boolean; email?: string; error?: string }>;
   login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
+  loginAsAdmin: (password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
+  adminLogout: () => Promise<void>;
   checkSession: () => Promise<AuthUser | null>;
   completeOnboarding: (details?: any) => Promise<{ success: boolean; error?: string; user?: AuthUser }>;
 }
@@ -267,6 +269,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [closeAuthModal]);
 
   /**
+   * Super Admin Login via Server-side Single Password Verification
+   */
+  const loginAsAdmin = useCallback(async (password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch('/api/admin?action=login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ password })
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const message = data?.error?.message || 'Invalid administrator password.';
+        return { success: false, error: message };
+      }
+
+      if (data?.user) {
+        setCurrentUser(data.user);
+        closeAuthModal();
+        return { success: true };
+      }
+
+      return { success: false, error: 'Unexpected response from administration portal.' };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error during admin login.' };
+    }
+  }, [closeAuthModal]);
+
+  /**
+   * Super Admin Logout
+   */
+  const adminLogout = useCallback(async (): Promise<void> => {
+    try {
+      await fetch('/api/admin?action=logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+    } catch (err) {
+      console.warn('Admin logout API call failed:', err);
+    } finally {
+      setCurrentUser(null);
+    }
+  }, []);
+
+  /**
    * Student Logout
    */
   const logout = useCallback(async (): Promise<void> => {
@@ -298,7 +348,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         bypassLoading,
         signup,
         login,
+        loginAsAdmin,
         logout,
+        adminLogout,
         checkSession,
         completeOnboarding
       }}

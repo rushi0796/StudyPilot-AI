@@ -651,7 +651,7 @@ export async function linkGoogleAccount(userId: string, googleId: string, avatar
 export async function insertUser(userData: Omit<UserRecord, 'created_at' | 'updated_at'>): Promise<UserRecord> {
   const normEmail = userData.email.toLowerCase().trim();
   const now = new Date().toISOString();
-  const assignedRole = userData.role || (isSuperAdminEmail(normEmail) ? 'super_admin' : 'student');
+  const assignedRole = userData.role || 'student';
   const record: UserRecord = {
     ...userData,
     email: normEmail,
@@ -904,7 +904,7 @@ export function isSuperAdminEmail(email?: string): boolean {
 }
 
 export function getUserRole(user: UserRecord): 'student' | 'super_admin' {
-  if (user.role === 'super_admin' || isSuperAdminEmail(user.email)) {
+  if (user.role === 'super_admin') {
     return 'super_admin';
   }
   return 'student';
@@ -954,7 +954,7 @@ export function toSafeUser(user: UserRecord): SafeUser {
     avatarUrl: user.avatar_url || undefined,
     authProvider: user.auth_provider || 'local',
     role: getUserRole(user),
-    onboardingCompleted: Boolean(user.onboarding_completed),
+    onboardingCompleted: user.role === 'super_admin' ? true : Boolean(user.onboarding_completed),
     createdAt: user.created_at
   };
 }
@@ -1151,7 +1151,7 @@ export async function processSignup(body: any, clientIp = '127.0.0.1') {
       semester: cleanSemester,
       preferred_language: cleanLang.slice(0, 10),
       auth_provider: 'local',
-      role: isSuperAdminEmail(cleanEmail) ? 'super_admin' : 'student',
+      role: 'student',
       onboarding_completed: false
     });
 
