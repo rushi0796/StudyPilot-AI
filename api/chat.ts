@@ -121,7 +121,7 @@ export function searchDocuments(query: string, chunks?: DocumentChunkContext[]):
 export async function callGeminiWithTimeout(
   url: string,
   body: any,
-  timeoutMs = 15000
+  timeoutMs = 25000
 ): Promise<{ ok: boolean; status: number; data?: any; errorData?: any }> {
   const attemptCall = async () => {
     const controller = new AbortController();
@@ -366,8 +366,8 @@ Core Capabilities & Operating Principles:
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-    // Call Gemini with 15s timeout and transient-only retry (status 500/503)
-    let callResult = await callGeminiWithTimeout(geminiUrl, requestBody, 15000);
+    // Call Gemini with 25s timeout and transient-only retry (status 500/503)
+    let callResult = await callGeminiWithTimeout(geminiUrl, requestBody, 25000);
 
     if (!callResult.ok) {
       return {
