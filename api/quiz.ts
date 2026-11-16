@@ -53,7 +53,7 @@ Output ONLY a JSON array of ${validCount} items with this exact schema:
   }
 ]`;
 
-    const model = (process.env.GEMINI_MODEL || 'gemini-1.5-flash').trim();
+    const model = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
     const response = await fetch(geminiUrl, {
       method: 'POST',

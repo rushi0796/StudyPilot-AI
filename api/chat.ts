@@ -198,7 +198,7 @@ export async function processChatRequest(payload: ChatRequestPayload) {
     };
   }
 
-  const PRIMARY_GEMINI_MODEL = (process.env.GEMINI_MODEL || payload.model || 'gemini-1.5-flash').trim();
+  const PRIMARY_GEMINI_MODEL = (process.env.GEMINI_MODEL || payload.model || 'gemini-2.5-flash').trim();
 
   const selectedLang = (payload.language || 'en').toLowerCase();
   let languageStrictRule = '';
@@ -501,7 +501,7 @@ export async function processOcrRequest(payload: {
   const base64Data = rawImage.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
   const mimeType = payload.mimeType || 'image/jpeg';
 
-  const PRIMARY_OCR_MODEL = (process.env.GEMINI_OCR_MODEL || process.env.GEMINI_MODEL || 'gemini-1.5-flash').trim();
+  const PRIMARY_OCR_MODEL = (process.env.GEMINI_OCR_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
 
   const ocrPrompt = `You are an expert academic document Optical Character Recognition (OCR) engine.
 Analyze this scanned study document page (File: "${payload.filename || 'Scanned Document'}", Page ${payload.pageNumber || 1}) and extract all text, questions, options, headings, numbers, tables, marks, and student notes.
@@ -570,7 +570,7 @@ export default async function handler(req: any, res: any) {
       status: 'active',
       service: 'StudyPilot AI Chat Service',
       hasApiKey: Boolean((process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim()),
-      model: process.env.GEMINI_MODEL || 'gemini-1.5-flash'
+      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash'
     });
   }
 
